@@ -1,0 +1,415 @@
+{
+  "id": "1279503",
+  "name": "美吉网盘",
+  "font_family": "iconfont",
+  "css_prefix_text": "icon",
+  "description": "",
+  "glyphs": [
+    {
+      "icon_id": "377101",
+      "name": "down",
+      "font_class": "s-down",
+      "unicode": "e68d",
+      "unicode_decimal": 59021
+    },
+    {
+      "icon_id": "377463",
+      "name": "up",
+      "font_class": "s-up",
+      "unicode": "e7e1",
+      "unicode_decimal": 59361
+    },
+    {
+      "icon_id": "551844",
+      "name": "竖线",
+      "font_class": "s-line",
+      "unicode": "e63a",
+      "unicode_decimal": 58938
+    },
+    {
+      "icon_id": "644142",
+      "name": "最大化",
+      "font_class": "s-min",
+      "unicode": "e605",
+      "unicode_decimal": 58885
+    },
+    {
+      "icon_id": "750747",
+      "name": "暂停",
+      "font_class": "s-pause-filled",
+      "unicode": "e6b9",
+      "unicode_decimal": 59065
+    },
+    {
+      "icon_id": "948542",
+      "name": "缩小",
+      "font_class": "suoxiao3",
+      "unicode": "e666",
+      "unicode_decimal": 58982
+    },
+    {
+      "icon_id": "1132074",
+      "name": "缩小",
+      "font_class": "suoxiao4",
+      "unicode": "e6d6",
+      "unicode_decimal": 59094
+    },
+    {
+      "icon_id": "1273289",
+      "name": "共享",
+      "font_class": "s-jointly",
+      "unicode": "e657",
+      "unicode_decimal": 58967
+    },
+    {
+      "icon_id": "2598009",
+      "name": "文件夹",
+      "font_class": "wenjianjia",
+      "unicode": "e60e",
+      "unicode_decimal": 58894
+    },
+    {
+      "icon_id": "2640564",
+      "name": "文件",
+      "font_class": "s-file-back",
+      "unicode": "e6a4",
+      "unicode_decimal": 59044
+    },
+    {
+      "icon_id": "2980932",
+      "name": "还原",
+      "font_class": "s-undo",
+      "unicode": "e642",
+      "unicode_decimal": 58946
+    },
+    {
+      "icon_id": "3090302",
+      "name": "分享",
+      "font_class": "s-share-extract",
+      "unicode": "e62d",
+      "unicode_decimal": 58925
+    },
+    {
+      "icon_id": "3229176",
+      "name": "会员中心",
+      "font_class": "s-member",
+      "unicode": "e602",
+      "unicode_decimal": 58882
+    },
+    {
+      "icon_id": "3335352",
+      "name": "文件夹-分享",
+      "font_class": "s-folder-share",
+      "unicode": "ea57",
+      "unicode_decimal": 59991
+    },
+    {
+      "icon_id": "3526578",
+      "name": "最大化",
+      "font_class": "s-max-back",
+      "unicode": "e649",
+      "unicode_decimal": 58953
+    },
+    {
+      "icon_id": "3584669",
+      "name": "true",
+      "font_class": "s-sure",
+      "unicode": "e610",
+      "unicode_decimal": 58896
+    },
+    {
+      "icon_id": "3691794",
+      "name": "项目",
+      "font_class": "s-project",
+      "unicode": "e656",
+      "unicode_decimal": 58966
+    },
+    {
+      "icon_id": "3822865",
+      "name": "文件夹",
+      "font_class": "s-folder-open",
+      "unicode": "e652",
+      "unicode_decimal": 58962
+    },
+    {
+      "icon_id": "3835133",
+      "name": "最大化",
+      "font_class": "s-max",
+      "unicode": "e66c",
+      "unicode_decimal": 58988
+    },
+    {
+      "icon_id": "4685698",
+      "name": "减少",
+      "font_class": "s-minimize-back",
+      "unicode": "e685",
+      "unicode_decimal": 59013
+    },
+    {
+      "icon_id": "4685699",
+      "name": "错误",
+      "font_class": "s-close-back",
+      "unicode": "e688",
+      "unicode_decimal": 59016
+    },
+    {
+      "icon_id": "4685702",
+      "name": "正确",
+      "font_class": "s-completed",
+      "unicode": "e687",
+      "unicode_decimal": 59015
+    },
+    {
+      "icon_id": "4685718",
+      "name": "账户",
+      "font_class": "s-person",
+      "unicode": "e690",
+      "unicode_decimal": 59024
+    },
+    {
+      "icon_id": "4685719",
+      "name": "密码",
+      "font_class": "s-password",
+      "unicode": "e691",
+      "unicode_decimal": 59025
+    },
+    {
+      "icon_id": "4685722",
+      "name": "设置",
+      "font_class": "s-setting",
+      "unicode": "e693",
+      "unicode_decimal": 59027
+    },
+    {
+      "icon_id": "4685728",
+      "name": "上传",
+      "font_class": "s-tansmit-upload",
+      "unicode": "e696",
+      "unicode_decimal": 59030
+    },
+    {
+      "icon_id": "4685730",
+      "name": "下载",
+      "font_class": "s-tansmit-download",
+      "unicode": "e698",
+      "unicode_decimal": 59032
+    },
+    {
+      "icon_id": "4685752",
+      "name": "退出",
+      "font_class": "s-quit",
+      "unicode": "e6a1",
+      "unicode_decimal": 59041
+    },
+    {
+      "icon_id": "4685759",
+      "name": "切换",
+      "font_class": "Group-5",
+      "unicode": "e6a3",
+      "unicode_decimal": 59043
+    },
+    {
+      "icon_id": "4685763",
+      "name": "分享",
+      "font_class": "Group-6",
+      "unicode": "e6a5",
+      "unicode_decimal": 59045
+    },
+    {
+      "icon_id": "5000922",
+      "name": "还原",
+      "font_class": "s-restore",
+      "unicode": "e60b",
+      "unicode_decimal": 58891
+    },
+    {
+      "icon_id": "5383826",
+      "name": "文件夹 打开",
+      "font_class": "s-open-folderback",
+      "unicode": "e679",
+      "unicode_decimal": 59001
+    },
+    {
+      "icon_id": "5460354",
+      "name": "文件打开",
+      "font_class": "s-open-folder",
+      "unicode": "e604",
+      "unicode_decimal": 58884
+    },
+    {
+      "icon_id": "5836358",
+      "name": "播放",
+      "font_class": "s-resume",
+      "unicode": "e6c3",
+      "unicode_decimal": 59075
+    },
+    {
+      "icon_id": "5917060",
+      "name": "文件夹",
+      "font_class": "s-folder",
+      "unicode": "e725",
+      "unicode_decimal": 59173
+    },
+    {
+      "icon_id": "6204098",
+      "name": "退出",
+      "font_class": "tuichu",
+      "unicode": "e60f",
+      "unicode_decimal": 58895
+    },
+    {
+      "icon_id": "6339449",
+      "name": "文件夹",
+      "font_class": "s-folder-back1",
+      "unicode": "e697",
+      "unicode_decimal": 59031
+    },
+    {
+      "icon_id": "6405876",
+      "name": "文件",
+      "font_class": "s-file",
+      "unicode": "e686",
+      "unicode_decimal": 59014
+    },
+    {
+      "icon_id": "6548526",
+      "name": "编辑",
+      "font_class": "s-rename",
+      "unicode": "e653",
+      "unicode_decimal": 58963
+    },
+    {
+      "icon_id": "6550609",
+      "name": "分享",
+      "font_class": "s-share",
+      "unicode": "e61c",
+      "unicode_decimal": 58908
+    },
+    {
+      "icon_id": "6550624",
+      "name": "新建文件夹",
+      "font_class": "s-add-folder",
+      "unicode": "e621",
+      "unicode_decimal": 58913
+    },
+    {
+      "icon_id": "6665743",
+      "name": "关  闭",
+      "font_class": "guanbi",
+      "unicode": "e664",
+      "unicode_decimal": 58980
+    },
+    {
+      "icon_id": "6729560",
+      "name": "文件管理_分享文件夹",
+      "font_class": "wenjianguanli_fenxiangwenjianjia",
+      "unicode": "e658",
+      "unicode_decimal": 58968
+    },
+    {
+      "icon_id": "6905538",
+      "name": "cancel",
+      "font_class": "s-cancel",
+      "unicode": "e677",
+      "unicode_decimal": 58999
+    },
+    {
+      "icon_id": "6957933",
+      "name": "缩小",
+      "font_class": "suoxiao",
+      "unicode": "e61b",
+      "unicode_decimal": 58907
+    },
+    {
+      "icon_id": "6980342",
+      "name": "回收站",
+      "font_class": "s-trash",
+      "unicode": "e627",
+      "unicode_decimal": 58919
+    },
+    {
+      "icon_id": "7769165",
+      "name": "缩小",
+      "font_class": "s-minimize",
+      "unicode": "eb63",
+      "unicode_decimal": 60259
+    },
+    {
+      "icon_id": "7770394",
+      "name": "缩小",
+      "font_class": "suoxiao2",
+      "unicode": "eb70",
+      "unicode_decimal": 60272
+    },
+    {
+      "icon_id": "7771325",
+      "name": "关  闭",
+      "font_class": "s-close",
+      "unicode": "e600",
+      "unicode_decimal": 58880
+    },
+    {
+      "icon_id": "8583359",
+      "name": "refresh",
+      "font_class": "s-refresh",
+      "unicode": "e692",
+      "unicode_decimal": 59026
+    },
+    {
+      "icon_id": "8616525",
+      "name": "文件",
+      "font_class": "s-open-file-filled",
+      "unicode": "e742",
+      "unicode_decimal": 59202
+    },
+    {
+      "icon_id": "9302438",
+      "name": "文件",
+      "font_class": "s-open-file-outline",
+      "unicode": "e633",
+      "unicode_decimal": 58931
+    },
+    {
+      "icon_id": "9356268",
+      "name": "暂停 停止",
+      "font_class": "s-pause-outline",
+      "unicode": "e643",
+      "unicode_decimal": 58947
+    },
+    {
+      "icon_id": "9512503",
+      "name": "下箭头",
+      "font_class": "s-arrow-bottom",
+      "unicode": "e613",
+      "unicode_decimal": 58899
+    },
+    {
+      "icon_id": "9512543",
+      "name": "下载",
+      "font_class": "s-download",
+      "unicode": "e61a",
+      "unicode_decimal": 58906
+    },
+    {
+      "icon_id": "9512675",
+      "name": "上传",
+      "font_class": "s-upload",
+      "unicode": "e63e",
+      "unicode_decimal": 58942
+    },
+    {
+      "icon_id": "9654449",
+      "name": "文件夹-共享",
+      "font_class": "s-folder-jointly",
+      "unicode": "e603",
+      "unicode_decimal": 58883
+    },
+    {
+      "icon_id": "9777751",
+      "name": "缩小",
+      "font_class": "suoxiao5",
+      "unicode": "e60c",
+      "unicode_decimal": 58892
+    }
+  ]
+}

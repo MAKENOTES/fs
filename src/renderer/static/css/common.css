@@ -1,0 +1,133 @@
+body,html {
+	-webkit-user-select: text;
+	height:100%;
+	font-size:14px;
+	-webkit-text-size-adjust:100%;
+	-ms-text-size-adjust:100%;
+	background: none!important;
+	overflow: hidden;
+}
+
+#file-manager {
+	/* height: 100%; */
+	height: 98%;
+	background: #ffffff;
+	box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+	border-radius: 4px;
+	margin: 0.5%;
+}
+
+.part-one{
+	width:100%;
+	position:absolute;
+	top:0;
+	left:0;
+	height: 76px;
+	border: 1px solid #2b84ff;
+	color:white !important;
+	-webkit-app-region: drag;
+}
+.part-two{
+	width:100%;
+	position:absolute;
+	bottom:30px;
+	top:76px;
+	_height:100%;
+	_top:0px;
+	border-bottom: 1px solid #d8dfea;
+}
+.part-three{
+	width:100%;
+	position:absolute;
+	bottom:0;
+	left:0;
+	height: 30px;
+	line-height: 30px;
+}
+
+.head-menu-self{
+	padding: 0px;
+	margin: 0 20px;
+    line-height: 32px;
+	color:white !important;
+    border-top-left-radius: 2em;
+    border-top-right-radius: 2em;
+    border-bottom-right-radius: 2em;
+	border-bottom-left-radius: 2em;
+	border:none !important;
+	-webkit-app-region: no-drag;
+}
+
+.top-menu-ceph{
+	width: 100px;
+}
+
+.top-menu-jointly{
+	width: 110px;
+}
+
+.top-menu-transmit{
+	width: 120px;
+}
+
+.top-back-color{
+	background: #3589ff;
+	border-radius: 4px 4px 0 0;
+}
+.left-back-color{
+	/* border-right: 1px solid #d8dfea; */
+	border: 1px solid #ebeced;
+	background: #f9fafb;
+	padding-top: 20px;
+}
+
+.ivu-table-wrapper{
+	border-left: none !important;
+}
+.ivu-table:before{
+	height:0px !important;
+}
+.ivu-table:after{
+	width: 0px !important;
+}
+.ivu-table-wrapper .ivu-table .ivu-table-body .ivu-table-tbody td{
+	border: none
+}
+.ivu-table-body{
+	height: 100%;
+	padding-bottom: 30px;
+    overflow-y: auto;
+}
+
+.span_position{
+	position:absolute;
+	border-radius:50%;
+	/* background-color:#ff5853; */
+	background-color:#faca1e;
+	color:#fff;
+	font-size:0.8rem;
+	width:1.2rem;
+	height:1.1rem;
+	line-height:1rem;
+	/* top:1rem; */
+	top: 0.1rem;
+	/* right:-0.1rem; */
+	right: 0.5rem;
+	z-index:1;
+	text-align: center;
+}
+
+
+.demo-spin-icon-load{
+	animation: ani-demo-spin 1s linear infinite;
+}
+@keyframes ani-demo-spin {
+	from { transform: rotate(0deg);}
+	100%  { transform: rotate(180deg);}
+	to   { transform: rotate(360deg);}
+}
+.demo-spin-col{
+	height: 100px;
+	position: relative;
+	border: 1px solid #eee;
+}
