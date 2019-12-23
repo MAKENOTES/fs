@@ -36,6 +36,20 @@
                 </span>
             </BreadcrumbItem>
         </Breadcrumb>
+        <!-- <Breadcrumb style="height: 21px;">
+            <BreadcrumbItem v-show="JSON.stringify(breadList) == '{}'" to="/extract" >
+                <span @click="verifier()">
+                <Icon type="ios-home-outline"></Icon> 全部文件
+                </span>
+            </BreadcrumbItem>
+            <BreadcrumbItem v-show="JSON.stringify(breadList) != '{}'" to="/extract"  v-for="(item,index) in breadList">
+                <span @click="choiseBread(item.cm_folder_pid, item.cm_folder_id)">
+                <Icon  v-if="index==0" type="ios-home-outline"></Icon>
+                <Icon  v-if="index>0" type="ios-folder-outline"></Icon> 
+                {{item.cm_folder_name}}
+                </span>
+            </BreadcrumbItem>
+        </Breadcrumb> -->
         <div ref="header"></div>
         <Table 
             :height="this.tableHeight"
@@ -71,9 +85,13 @@
     
 </template>
 <script>
+    import {mapState,mapGetters,mapActions} from 'vuex';
     import db from '../../datastore/db' // 取决于你的datastore.js的位置
     import { tableMixin } from '../common/mixins';
+    import path from 'path'
+    const fs = require('fs');
     const md5 = require('md5');
+    const { exec } = require('child_process');
     export default {
         name: 'extract',
         mixins: [tableMixin],
@@ -83,6 +101,7 @@
                 extractSee:true,
                 cm_bucket_id: '',
                 cm_user_id: '',
+                cm_user_username: '',
                 cm_folder_pid: 0,
                 cm_folder_name: '',
 				extract_data: {cm_share_link: '', cm_share_key: '', cm_user_id: '', cm_bucket_id: ''},
@@ -119,6 +138,7 @@
             //初始化
             this.cm_bucket_id = fns.getStorage('remember_bucket_id');
             this.cm_user_id = fns.getStorage('remember_user_id');
+            this.cm_user_username = fns.getStorage('remember_username');
 
         	this.extract_data.cm_user_id = fns.getStorage('remember_user_id');
         	this.extract_data.cm_bucket_id = fns.getStorage('remember_bucket_id');
@@ -126,6 +146,20 @@
             console.log('url------------', window.location.search);
             this.settingExtractLayer();
 
+        },
+        computed: {
+            ...mapGetters('uploadList',{ //用mapGetters来获取uploadList.js里面的getters
+                uploadList:'getList'
+            }),
+            ...mapGetters('downloadList',{ 
+                downloadList:'getList'
+            }),
+            ...mapGetters('completedList',{ 
+                completedList:'getList'
+            }),
+            ...mapGetters('listenerStatus',{ 
+                listenerStatus:'getList'
+            })
         },
         beforeUpdate () {
             //表格高度自适应 放在 mounted 获取不到真实的this.$refs.table.$el.offsetTop
@@ -165,7 +199,6 @@
                         console.log('verifier----------------', res.data.d);
                         this.folderData = res.data.d;
                         this.extractLayer = false;
-                        //this.getBreadList(this.cm_folder_pid);待修复
                         fns.setCache('cm_share_link', this.extract_data.cm_share_link);
                         fns.setCache('cm_share_key', this.extract_data.cm_share_key);
 
@@ -176,22 +209,14 @@
                 });
         	},
             downloadBeforeCheck () {
-                let support = false;
-                this.selectList.forEach((item, index) => {
-                    if (0 === this.selectList[index].cm_is_file) {
-                        support = true;
-                    }
-                })
-                if(this.selectList.length <= 0){this.$Message.error('请勾选文件需要下载的文件！');return false;}
-
-                let dbPath = db.read().get('userData').find({ id: this.cm_user_id }).value();
+                let dbPath = db.read().get('userData').find({ username: this.cm_user_username }).value();
                 console.log('dbPath===========================', typeof(dbPath));
                 if ('undefined' === typeof(dbPath)) {
                     this.$Modal.confirm({
                         title: '提示消息',
                         content: '<p>是否现在设置文件下载路径</p>',
                         onOk: () => {
-                            this.$electron.ipcRenderer.send('DOWNLOAD_PATH', {id: this.cm_user_id, status:true});
+                            this.$electron.ipcRenderer.send('DOWNLOAD_PATH', {username: this.cm_user_username, status:true});
                         },
                         onCancel: () => {
                         }
@@ -202,9 +227,30 @@
             //通过点击按钮下载文件
             downloadFileBtn () {
                 this.downloadBeforeCheck();
-                let dbPath = db.read().get('userData').find({ id: this.cm_user_id }).value();
+                let dbPath = db.read().get('userData').find({ username: this.cm_user_username }).value();
                 if ('undefined' === typeof(dbPath)) { return false;}
 
+                if(this.selectList.length <= 0){
+                    this.$Message.error('请勾选文件需要下载的文件或点击下载！');
+                    this.selectList = [];
+                    return false;
+                }
+                //正在下载
+                let Already = true;
+                let downAlready = [];
+                Array.from(this.downloadList).forEach((item, index) => {
+                    downAlready.push(item.id);
+                });
+                Array.from(this.selectList).forEach((item, index) => {
+                    if (downAlready.indexOf(item.cm_folder_id) !== -1) {
+                        this.$Message.error('已在下载列表中');
+                        Already = false;
+                    }
+                });
+                if (false === Already) {
+                    return false;
+                }
+                this.loading = true;
                 this.$axios({
                     method: 'post',
                     url: apis.getUrl('folder_batch_down'),
@@ -212,19 +258,89 @@
                 })
                 .then(res => {
                     if (res.data.c === 0) {
-                        //文件下载信息
-                        //console.log('down===========================', res.data.d);
                         let downloadList = [];
+                        let totalSize = 0;
                         downloadList = res.data.d;
                         Array.from(downloadList).forEach((item, index) => {
+                            if (0 > item.Urls.length) {
+                                this.$Message.error({content:`${item.name}下载失败`, duration: 5});
+                                return;
+                            }
+                            //如果下载文件存在
+                            if (fs.existsSync(path.join(dbPath.path, `\\${item.name}`))) {
+                                if (downloadList[index].folder_path) {
+                                    Array.from(downloadList[index].folder_path).forEach((item1, index1) => {
+                                        downloadList[index].folder_path[index1] = item1.slice(0,item.name.length)+item.time+item1.slice(item.name.length);
+                                    });
+                                }
+                                if (downloadList[index].file_path) {
+                                    Array.from(downloadList[index].file_path).forEach((item2, index2) => {
+                                        if (downloadList[index].file_path.length == 1) {
+                                            //单文件
+                                            if (item.name.lastIndexOf(".") > 0) {
+                                                downloadList[index].file_path[index2] = item.name.substring(0, item.name.lastIndexOf("."))+item.time+item.name.substring(item.name.lastIndexOf('.'));
+                                            } else {
+                                                //单文件夹 单文件
+                                                downloadList[index].file_path[index2] = item2.slice(0,item.name.length)+item.time+item2.slice(item.name.length);
+                                            }
+                                        } else {
+                                            downloadList[index].file_path[index2] = item2.slice(0,item.name.length)+item.time+item2.slice(item.name.length);
+                                        }
+                                    });
+                                }
+                                if (downloadList[index].Urls) {
+                                    Array.from(downloadList[index].Urls).forEach((item3, index3) => {
+                                        if (downloadList[index].Urls.length == 1) {
+                                            //单文件
+                                            if (item.name.lastIndexOf(".") > 0) {
+                                                downloadList[index].Urls[index3].path = item.name.substring(0, item.name.lastIndexOf("."))+item.time+item.name.substring(item.name.lastIndexOf('.'));
+                                            } else {
+                                                //单文件夹 单文件
+                                                downloadList[index].Urls[index3].path = item3.path.slice(0,item.name.length)+item.time+item3.path.slice(item.name.length);
+                                            }
+                                        } else {
+                                            downloadList[index].Urls[index3].path = item3.path.slice(0,item.name.length)+item.time+item3.path.slice(item.name.length);
+                                        }
+                                    });
+                                }
+                                if (downloadList[index].folder_path.length == 0) {
+                                    downloadList[index].name = item.name.substring(0, item.name.lastIndexOf("."))+item.time+item.name.substring(item.name.lastIndexOf('.'));
+                                } else {
+                                    downloadList[index].name = item.name + item.time;
+                                }
+                            }
+                            totalSize += item.size;
                             downloadList[index].downloads = dbPath.path;
                         })
-                        console.log('downloadList============================', downloadList, dbPath.path);
-                        this.$electron.ipcRenderer.send('DOWNLOAD_FILES', downloadList)
+                        let caption = dbPath.path.substring(0,2);
+                        exec(`wmic LOGICALDISK where "name='${caption}'" get freespace`, (err, stdout, stderr) => {
+                            if(err || stderr) {
+                                console.log("root path open failed" + err + stderr);
+                                this.$electron.ipcRenderer.send('DOWNLOAD_FILES', downloadList);
+                                this.loading = false;
+                                return false;
+                            } else {
+                                this.downloadList.forEach((folder, index) => {
+                                    totalSize += folder.size;
+                                })
+                                let list = stdout.trim().split('\n');
+                                let freeSize = list[1];
+                                console.log('磁盘剩余空间---------------',freeSize, totalSize);
+                                if (Number(totalSize) >= Number(freeSize)) {
+                                    this.$Message.error('磁盘剩余空间不够！！！');
+                                    this.loading = false;
+                                    return false;
+                                }
+                                this.$electron.ipcRenderer.send('DOWNLOAD_FILES', downloadList)
+                                this.loading = false;
+                            }
+                        });
                     } else {
+                        this.loading = false;
                         this.$Message.error(res.data.m);
                     }
                 });
+
                 
             },
             selectOne(selection, row){
@@ -248,11 +364,7 @@
             dbclickRows(row, index){
                 if(row.cm_is_file == 0){
                     this.cm_folder_id = row.cm_folder_id;
-                    //面包屑
-                    console.log('dbclickRows--------------', row);
-                    //this.cm_folder_pid = row.cm_folder_id;
                     this.getExtractList();
-                    //this.getBreadList(row.cm_folder_id);待修复
                 }
             },
             getExtractList(){
@@ -270,10 +382,9 @@
                 .then(res => {
                     if (res.data.c === 0) {
                         console.log('getExtractList----------------', res.data.d);
-                        this.folderData = res.data.d;
+                        this.folderData = res.data.d.folder;
+                        this.breadList = res.data.d.bread;
                         this.extractLayer = false;
-                        
-
                     } else {
                         this.$Message.error(res.data.m);
                     }
@@ -281,32 +392,8 @@
                 });
             },
   		    choiseBread(cm_folder_pid, cm_folder_id){
-  		    	console.log('choiseBread---------------', this.extract_data);
                 this.cm_folder_id = cm_folder_id;
                 this.getExtractList();
-                //this.getBreadList(cm_folder_id);待修复
-            },
-            getBreadList(cm_folder_pid){
-                var map = {'cm_folder_pid':cm_folder_pid};
-                console.log('aaaaaaa', map);
-                this.$axios({
-                    method: 'post',
-                    url: apis.getUrl('folder_bread'),
-                    data: map
-                })
-                .then(res => {
-                    if (res.data.c === 0) {
-                        //提示消息
-                        //this.$Message.success('获取成功！');
-                        //模板列表赋值
-                        console.log('getBreadList-----------------------', res.data.d);
-                        this.breadList = res.data.d;
-
-                    } else {
-                        this.$Message.error(res.data.m);
-                    }
-                    this.loading = false;
-                });
             },
             againExtract(){
                 this.extractSee = true;
@@ -314,12 +401,15 @@
             },
             folderClickName (row) {
                 if(row.cm_is_file == 0){
-                    this.cm_folder_id = row.cm_folder_id;
-                    //面包屑
-                    console.log('dbclickRows--------------', row);
-                    //this.cm_folder_pid = row.cm_folder_id;
-                    this.getExtractList();
-                    //this.getBreadList(row.cm_folder_id);待修复
+                    let clickTimer = null;
+                    if (clickTimer) {
+                        window.clearTimeout(clickTimer);
+                        clickTimer = null;
+                    }
+                    clickTimer = window.setTimeout(() => {
+                        this.cm_folder_id = row.cm_folder_id;
+                        this.getExtractList();
+                    }, 100);
                 }
             }
         }

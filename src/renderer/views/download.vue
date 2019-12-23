@@ -1,3 +1,37 @@
+
+<style>
+    table.gridtable {
+        font-family: verdana,arial,sans-serif;
+        font-size:11px;
+        color:#333333;
+        border-width: 1px;
+        border-color: #666666;
+        border-collapse: collapse;
+    }
+    table.gridtable th {
+        width: 400px;
+        border-width: 1px;
+        padding: 8px;
+        border-style: solid;
+        border-color: #666666;
+        background-color: #dedede;
+    }
+    table.gridtable td {
+        border-width: 1px;
+        padding: 8px;
+        border-style: solid;
+        border-color: #666666;
+        background-color: #ffffff;
+        word-break: break-all; 
+        word-wrap:break-word;
+    }
+    .ivu-modal-header {
+        background-color: #3589ff !important;
+    }
+    .ivu-modal-body {
+        background-color: aliceblue;
+    }
+</style>
 <template>
     <div>
         <div style="height: 32px;font-size: 14px;border-bottom: 1px solid #d8dfea;">
@@ -28,7 +62,30 @@
                 @resume="resume"
                 @remove="remove"
                 @retry="retry"
+                @openFileError="openFileError"
             ></Downloader>
+        </div>
+        <div>
+            <Modal 
+                v-model="fileError" 
+                title="文件传输错误信息" 
+                :mask=false
+                :styles="{top: '100px' }"
+                :width="820">
+                    <div style="overflow-y: auto;height: 300px;">
+                    <table class="gridtable">
+                        <th>文件路径</th>
+                        <th>失败原因</th>
+                        <tr v-for="(item, index) in fileErrorList" :key="index">
+                            <td>{{item.path}}</td>
+                            <td>{{item.tip}}</td>
+                        </tr>
+                    </table>
+                    </div>
+                    <div slot="footer">
+                    <Button type="primary" size="small" @click="closeFileError">关闭</Button>
+                    </div>  
+            </Modal>
         </div>
     </div>
 </template>
@@ -43,6 +100,8 @@
         mixins: [tableMixin],
         data () {
             return {
+                fileErrorList: [],
+                fileError: false
             }
         },
         created() {
@@ -167,6 +226,27 @@
                     this.$electron.ipcRenderer.send('DOWNLOAD_FILES', tempFile)
                 }
             },
+            openFileError (FileId) {
+                console.log('openFileError===================================', FileId);
+                this.fileErrorList = [];
+                this.downloadList.forEach((item, index) => {
+                    if (this.downloadList[index].FileId == FileId) {
+                        this.downloadList[index].Urls.forEach((item1, index1) => {
+                            if (true === item1.error) {
+                                this.fileErrorList.push(item1);
+                            }
+                        })
+                    }
+                })
+                if (this.fileErrorList.length > 0) {
+                    this.fileError = true;
+                } else {
+                    this.$Message.info('请求超时');
+                }
+            },
+            closeFileError () {
+                this.fileError = false;
+            },
             //全部暂停
             downloadPauseAll () {
                 //清空  vuex---listenerStatus-downloadPause
@@ -180,9 +260,11 @@
             downloadStartAll () {
                 //清空  vuex---listenerStatus-downloadPause
                 this.$store.dispatch('listenerStatus/initSelfDownloadPause', []);
+                this.$store.dispatch('listenerStatus/downloadPauseAll', false)
                 let tempFile = [];
                 this.downloadList.forEach((item, index) => {
                     this.downloadList[index].paused = false;
+                    this.downloadList[index].error = false;
 
                     let indexFile = { index: index, file: this.downloadList[index] }
                     tempFile[index] = this.downloadList[index];
@@ -202,12 +284,13 @@
                 if (true === pauseAll) {
                     console.log('==============处于暂停状态==================');
                     //清空  vuex---downloadList 和 db---downloadList
-                    this.$store.dispatch('downloadList/removeAll', fns.getStorage('remember_user_id'))
+                    this.$store.dispatch('downloadList/removeAll', fns.getStorage('remember_username'))
                 } else {
                     //清空  vuex---listenerStatus-downloadPause
                     this.$store.dispatch('listenerStatus/initSelfDownloadPause', []);
                     //限制文件更新
                     this.$store.dispatch('listenerStatus/downloadRemoveAll', true)
+                    this.$store.dispatch('downloadList/removeAll', fns.getStorage('remember_username'))
                     //清空主进程 文件下载队列和文件块下载队列
                     this.$electron.ipcRenderer.send('DOWNLOAD_CLEAR_ALL', {event: 'DOWNLOAD_CLEAR_ALL_CALL', status: true});
                 }

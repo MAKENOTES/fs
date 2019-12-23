@@ -55,6 +55,10 @@ if (!db.has('updateLog').value()) {
     }).write()
 }
 
+if (!db.has('remind').value()) {
+    db.set('remind', []).write()
+}
+
 // db.set('upload', []).write()
 // db.set('download', []).write()
 // db.set('completed', []).write()

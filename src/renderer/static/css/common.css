@@ -99,6 +99,10 @@ body,html {
     overflow-y: auto;
 }
 
+.ivu-menu{
+	z-index: 2 !important;
+}
+
 .span_position{
 	position:absolute;
 	border-radius:50%;

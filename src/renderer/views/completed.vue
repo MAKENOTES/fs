@@ -72,7 +72,7 @@ let completed = {
         },
         completedRemoveAll () {
             //清空  vuex---completedList
-            this.$store.dispatch('completedList/removeAll', fns.getStorage('remember_user_id'))
+            this.$store.dispatch('completedList/removeAll', fns.getStorage('remember_username'))
         }
     },
     components: {

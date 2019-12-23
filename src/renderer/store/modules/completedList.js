@@ -30,7 +30,7 @@ const mutations = {
         .remove({ FileId: indexFile.file.FileId })
         .write()
     },
-    removeAll (state, UserId) {
+    removeAll (state, username) {
         let tempIndex = [];
         state.completedList.forEach((item, index) => {
             tempIndex.push(index);
@@ -41,7 +41,7 @@ const mutations = {
 
         //删除
         db.read().get('completed')
-        .remove({ UserId: UserId })
+        .remove({ username: username })
         .write()
     },
     initList (state, fileList) {
@@ -66,8 +66,8 @@ const actions = {
     deleteFile(context, indexFile){
         context.commit('deleteFile', indexFile)
     },
-    removeAll(context, UserId){
-        context.commit('removeAll', UserId)
+    removeAll(context, username){
+        context.commit('removeAll', username)
     },
     initList(context, fileList){
         context.commit('initList', fileList)

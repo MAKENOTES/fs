@@ -80,7 +80,8 @@ axios.interceptors.response.use(
                 default: error.message = `连接出错(${error.response.status})!`;
             }
         }else{
-            error.message = '连接服务器失败，请检查网络连接或联系管理员'
+            error.message = '连接服务器失败';
+            bus.$emit('main_login_loading', false);
         }
         iView.Message.error(error.message);
         return Promise.reject(error);

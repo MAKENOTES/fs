@@ -4,6 +4,7 @@ import AwsS3Service from './service/AwsS3Service.js';
 import UploadService from './service/UploadService.js';
 import DownloadService from './service/DownloadService.js';
 import db from '../datastore/db' // 取决于你的datastore.js的位置
+const notifier = require('node-notifier');
 
 let mainWindow
 let closeMainwindow = false;
@@ -30,6 +31,13 @@ let configService = {
 let s3 = null;
 //let dbConfigService = db.read().get('configService').value();
 
+//发送操作系统级别的通知
+const sendNotification = (title, message) => {
+    notifier.notify({
+        title,
+        message,
+    });
+};
 
 /**
  * Set `__static` path to static files in production
@@ -322,6 +330,11 @@ ipcMain.on('DOWNLOAD_RETRY', async (evt, FileId) => {
 ipcMain.on('DOWNLOAD_CLEAR_ALL', async (evt, data) => {
     let Download = new DownloadService(mainWindow);
     Download.downloadClearAll(data);
+})
+//监听 下载任务成功 Success
+ipcMain.on('DOWNLOAD_SUCCESS', async (evt, name) => {
+    console.log('DOWNLOAD_SUCCESS========================', name);
+    sendNotification(name, '下载完成');
 })
 
 

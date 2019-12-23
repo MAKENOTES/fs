@@ -53,10 +53,14 @@
 </style>
 <template>
     <div style="height: 100%;position: relative;">
+        <Spin fix v-show="isGlobalInitShow" style="background-color:rgba(20, 107, 237, 0.21);">
+            <Icon type="ios-loading" size=24 class="demo-spin-icon-load"></Icon>
+            <div>请稍等 .......</div>
+        </Spin>
         <Row type="flex" justify="center" align="middle" class="part-one top-back-color">
             <i-col span="4">
                 <div style="text-align: left; padding-left: 10px;">
-                    <img src="../static/images/logo.png" />
+                    <img style="max-width: 100%;" src="../static/images/logo.png" />
                 </div>
             </i-col>
             <i-col span="15">
@@ -105,8 +109,9 @@
                             <use xlink:href="#icons-setting"></use>
                         </svg>
                         <DropdownMenu style="-webkit-app-region: no-drag;" slot="list">
-                            <DropdownItem name="user_info"><Icon type="md-person"></Icon> 个人资料</DropdownItem>
-                            <DropdownItem name="user_password"><Icon type="md-lock"></Icon> 修改密码</DropdownItem>
+                            <!-- <DropdownItem name="user_info"><Icon type="md-person"></Icon> 个人资料</DropdownItem>
+                            <DropdownItem name="user_password"><Icon type="md-lock"></Icon> 修改密码</DropdownItem> -->
+                            <DropdownItem name="clear_tash"><Icon type="ios-trash"></Icon> 清理数据</DropdownItem>
                             <DropdownItem name="down_path"><Icon type="md-folder"></Icon> 下载路径</DropdownItem>
                             <DropdownItem name="check_update"><Icon type="md-sync"></Icon> 检查更新</DropdownItem>
                             <DropdownItem name="user_logout" divided>
@@ -148,7 +153,7 @@
                     ref="leftMenu"
                     @on-select="menuLeft" style="width:auto;">
 
-                    <div v-for="item in leftMenuNode">
+                    <div v-for="(item, index) in leftMenuNode" :key="index">
                         <Submenu v-if="item.child" :name="item.name">
                             <template slot="title">
                                 <!-- <Icon :type="item.icon" /> -->
@@ -157,7 +162,7 @@
                                 </svg>
                                 {{item.title}}
                             </template>
-                            <div v-for="childv in item.child"> 
+                            <div v-for="(childv, childi) in item.child" :key="childi"> 
                                 <MenuItem :name="childv.name" :to="childv.name">
                                     <!-- <Icon :type="childv.icon" /> -->
                                     <!-- <svg class="icon-self-left" aria-hidden="true" >
@@ -233,35 +238,35 @@ export default {
                     icon: '#icons-project',
                     active: ''
                 },
-                {
-                    title: '会员中心',
-                    name: 'member',
-                    icon: '#icons-member',
-                    active: '',
-                    child: [
-                        {
-                            title: '个人资料',
-                            name: 'info',
-                            icon: '#icons-person',
-                            active: '',
-                            key: '1-1'
-                        },
-                        {
-                            title: '上传头像',
-                            name: 'avatar',
-                            icon: '#icons-person',
-                            active: '',
-                            key: '1-2'
-                        },
-                        {
-                            title: '修改密码',
-                            name: 'password',
-                            icon: '#icons-password',
-                            active: '',
-                            key: '1-3'
-                        },
-                    ]
-                },
+                // {
+                //     title: '会员中心',
+                //     name: 'member',
+                //     icon: '#icons-member',
+                //     active: '',
+                //     child: [
+                //         {
+                //             title: '个人资料',
+                //             name: 'info',
+                //             icon: '#icons-person',
+                //             active: '',
+                //             key: '1-1'
+                //         },
+                //         {
+                //             title: '上传头像',
+                //             name: 'avatar',
+                //             icon: '#icons-person',
+                //             active: '',
+                //             key: '1-2'
+                //         },
+                //         {
+                //             title: '修改密码',
+                //             name: 'password',
+                //             icon: '#icons-password',
+                //             active: '',
+                //             key: '1-3'
+                //         },
+                //     ]
+                // },
                 {
                     title: '我的分享',
                     name: 'share',
@@ -308,7 +313,8 @@ export default {
                     icon: '#icons-completed',
                     active: ''
                 },
-            ]
+            ],
+            isGlobalInitShow: false,
         }
     },
     created () {
@@ -323,7 +329,26 @@ export default {
                 this.$electron.ipcRenderer.send('DOWNLOAD_CLEAR_ALL', {event: 'DOWNLOAD_CLEAR_ALL_CALL', status: false});
                 this.logOut();
             });
+
+            //下载错误
+            this.$electron.ipcRenderer.on('DOWNLOAD_ERROR_NET', (e, file) => {
+                let isUpdate = true;
+                this.listenerStatus.downloadPause.forEach((item, index) => {
+                    if ( this.listenerStatus.downloadPause[index].FileId == file.data.FileId) {
+                        isUpdate = false;
+                    }
+                })
+                if (isUpdate) {
+                    this.$Message.error({content:'网络不稳定或文件已不存在！！！', duration: 8});
+                }
+            });
         }
+
+        //监听 全局loading
+        this.bus.$on('ceph_index_loading', status => {
+            console.log('ceph_index_loading===================', status);
+            this.isGlobalInitShow = status;
+        });
     },
     mounted () {
         this.initPreventDefault();
@@ -344,6 +369,7 @@ export default {
         this.bus.$on('change_avatar', avatar => {
             this.top_avatar = avatar;
         });
+
         //监听 退出应用事件
         this.bus.$on('app_quit', status => {
             this.dropDownClick('user_logout');
@@ -352,13 +378,16 @@ export default {
         this.bus.$on('ceph_index_user', flag => {
             this.setTopUserInfo();
         });
-        // db.read().set('updateLog', {
-        //     version: '0.0.13', 
-        //     content: '版本更新, 新增批量处理'
-        // }).write();
-        //db.read().set('updateLog.version', '0.0.13').write();
+
+        //版本处理
+        this.remindUpdate();
         let version = (db.read().get('updateLog').value()).version;
-        this.version =  version ? version : '2.1.1';
+        if (version) {
+            this.version =  version;
+        } else {
+            this.version = '2.1.3';
+            db.read().set('updateLog.version', this.version).write();
+        }
         console.log('version================', db.read().get('updateLog').value());
     },
     computed: {
@@ -420,6 +449,9 @@ export default {
             if(name == 'user_password'){
                 this.goTpl('password');
             }
+            if(name == 'clear_tash'){
+                this.clearTash();
+            }
             if(name == 'down_path'){
                 this.setDownpath();
             }
@@ -427,6 +459,7 @@ export default {
                 this.checkUpdate();
             }
             if(name == 'user_logout'){
+                this.isGlobalInitShow = true;
                 fns.clearCache();
 
                 fns.rmStorage('Jwt');
@@ -562,6 +595,18 @@ export default {
             const window = BrowserWindow.getFocusedWindow()
             window.close()
         },
+        clearTash () {
+            this.$Modal.confirm({
+                title: '提示消息',
+                content: '请在没有文件下载的情况下，进行此操作！！！',
+                onOk: () => {
+                    db.set('download', []).write();
+                    this.$Message.success('操作成功！');
+                },
+                onCancel: () => {
+                }
+            });
+        },
         setDownpath () {
             let dbPath = db.read().get('userData').find({ username: fns.getStorage('remember_username') }).value();
             let strPath = '';
@@ -578,6 +623,37 @@ export default {
                     this.$electron.ipcRenderer.send('DOWNLOAD_PATH', {username: fns.getStorage('remember_username'), status:false});
                 },
                 onCancel: () => {
+                }
+            });
+        },
+        remindUpdate () {
+            this.$axios({
+                method: 'post',
+                url: apis.getUrl('update_info'),
+                data: {'version': db.read().get('updateLog').value().version}
+            })
+            .then(res => {
+                if (res.data.c === 0) {
+                    let remindVersion = db.read().get('remind').find({ version: res.data.d.version }).value();
+                    if (!remindVersion) {
+                        this.$Modal.confirm({
+                            title: '更新提示',
+                            content: '<p>发现新的版本，是否现在更新</p>',
+                            cancelText: '不再提醒',
+                            onOk: () => {
+                                db.read().set('updateLog', {
+                                    version: res.data.d.version, 
+                                    content: res.data.d.content
+                                }).write();
+                                this.$electron.ipcRenderer.send('DOWNLOAD_UPDATE', false);
+                            },
+                            onCancel: () => {
+                                db.read().get('remind')
+                                .push({version: res.data.d.version})
+                                .write()
+                            }
+                        });
+                    }
                 }
             });
         },

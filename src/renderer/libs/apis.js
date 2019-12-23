@@ -2,8 +2,8 @@ let apis = {
     //接口前缀
 
     //prefix: 'http://middle.nngs.com',
-    prefix: 'http://middle.tngs.com',
-    //prefix: 'http://middle.i-sanger.com',
+    //prefix: 'http://middle.tngs.com',
+    prefix: 'http://middle.i-sanger.com',
     
     //账号密码登录接口
     user_login: '/Proxy/User/login',

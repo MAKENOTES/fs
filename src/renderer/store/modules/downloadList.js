@@ -48,7 +48,51 @@ const mutations = {
             .write()  
         }
     },
-    removeAll (state, UserId) {
+    updateFileDetail (state, updateFile) {
+        if (true === updateFile.baseFolder.isComplete) {
+            state.downloadList.splice(updateFile.index, 1)
+
+            //删除
+            db.read().get('download')
+            .remove({ FileId: updateFile.baseFolder.FileId })
+            .write()
+        } else {
+
+            let index      = updateFile.index;
+            let indexFile  = updateFile.indexFile;
+            let indexParts = updateFile.indexParts;
+            let folder     = updateFile.baseFolder;
+
+            state.downloadList[index].error         = folder.error;
+            state.downloadList[index].paused        = folder.paused;
+            state.downloadList[index].status        = folder.status;
+            state.downloadList[index].isUnderway    = folder.isUnderway;
+            state.downloadList[index].isRemove      = folder.isRemove;
+
+            state.downloadList[index].size          = folder.size;
+            state.downloadList[index].totalBytes    = folder.totalBytes;
+            state.downloadList[index].receivedBytes = folder.receivedBytes;
+            state.downloadList[index].progress      = folder.progress;
+            state.downloadList[index].milliTime     = folder.milliTime;
+
+            state.downloadList[index].averageSpeed  = folder.averageSpeed;
+            state.downloadList[index].statusText    = folder.statusText;
+            state.downloadList[index].isComplete    = folder.isComplete;
+
+            state.downloadList[index].Urls[indexFile].Parts.splice(indexParts, 1, folder.fileParts);
+
+            state.downloadList[index].Urls[indexFile].size          = folder.fileSize;
+            state.downloadList[index].Urls[indexFile].receivedBytes = folder.fileReceivedBytes;
+            state.downloadList[index].Urls[indexFile].isComplete    = folder.fileIsComplete;
+            
+            //修改
+            db.read().get('download')
+            .find({ FileId: folder.FileId })
+            .assign(state.downloadList[index])
+            .write()  
+        }
+    },
+    removeAll (state, username) {
         //不能这样赋值
         //state.downloadList = [];
         let tempIndex = [];
@@ -61,7 +105,7 @@ const mutations = {
        
         //删除
         db.read().get('download')
-        .remove({ UserId: UserId })
+        .remove({ username: username })
         .write()
     },
     initList (state, file) {
@@ -87,8 +131,11 @@ const actions = {
     updateFile(context, indexFile){
         context.commit('fileMessage', indexFile)
     },
-    removeAll(context, UserId){
-        context.commit('removeAll', UserId)
+    updateFileDetail(context, updateFile){
+        context.commit('updateFileDetail', updateFile)
+    },
+    removeAll(context, username){
+        context.commit('removeAll', username)
     },
     initList(context, file){
         context.commit('initList', file)

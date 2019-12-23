@@ -129,7 +129,7 @@ body{
                             <span class="title_right" @click="switchLogin('loginSms')" >短信快捷登录></span>
                         </FormItem>
                         <FormItem prop="username">
-                            <i-input type="text" size="large" v-model="loginAccount.username" placeholder="Email">
+                            <i-input type="text" size="large" v-model.trim="loginAccount.username" placeholder="Email">
                                 <Icon type="md-person" slot="prepend"></Icon>
                             </i-input>
                         </FormItem>
@@ -144,9 +144,9 @@ body{
                         <FormItem>
                             <Button type="primary" size="large" :loading="loading" @click="handleSubmit('loginAccount')" long>登录</Button>
                         </FormItem>
-                        <!-- <FormItem>
-                            <p class="reg_div"><i class="el-icon-question"></i> 还没有账号？马上<span @click="goUrlRegister">注册</span></p>
-                        </FormItem> -->
+                        <FormItem>
+                            <p class="reg_div"><i class="el-icon-question"></i><a @click="forgetPassword" target="_blank" >忘记密码?</a></p>
+                        </FormItem>
                     </Form>
 
                     <Form ref="loginSms" :model="loginSms" :rules="ruleSms" v-show="switchLabel == 'loginSms'" >
@@ -180,7 +180,7 @@ body{
         :styles="{top: '200px'}"
         :width="420"> 
             <Row>
-                <i-col  v-for="item in allAccount" span="12" style=" margin-top: 10px">
+                <i-col  v-for="(item, index) in allAccount" :key="index" span="12" style=" margin-top: 10px">
                     <Tag checked @click.native="sureAccount(item.id, item.username)"  color="blue">{{item.username}}</Tag>
                 </i-col>
             </Row>
@@ -192,7 +192,7 @@ body{
 
 <script>
 import {mapState,mapGetters,mapActions} from 'vuex';
-import { remote } from 'electron';
+import { remote, shell } from 'electron';
 const { Menu, dialog, BrowserWindow } = remote;
 export default {
     data() {
@@ -245,7 +245,11 @@ export default {
                 tempObj.handleSubmit('loginAccount');
             }
         }
-        this.os = process.platform
+        this.os = process.platform;
+
+        this.bus.$on('main_login_loading', status => {
+            this.loading = status;
+        });
     },
     mounted() {
         //进入页面把账号密码还原
@@ -415,6 +419,9 @@ export default {
                     this.loading = false;
                 }
             });
+        },
+        forgetPassword () {
+            shell.openExternal('http://vip.majorbio.com/forgetPassword');
         },
         minimizeWindow () {
             const window = BrowserWindow.getFocusedWindow()

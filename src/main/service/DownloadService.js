@@ -1,9 +1,10 @@
 import path from 'path';
 const fs = require('fs');
-const notifier = require('node-notifier');
 const async = require("async");
 const request = require('request');
 const process = require('process');
+
+const selfLib = require('../util/selfLib.js');
 
 const crypto = require('crypto');
 
@@ -29,8 +30,9 @@ let clearAll = {
     event: 'DOWNLOAD_CLEAR_ALL_CALL',
     status: false
 };
-//定义一个queue， 设worker数量为2
-let downloadQueue = async.queue(function(task, callback){
+
+//定义一个下载任务， 设worker数量为2
+var downloadQueue = async.queue(function(task, callback){
     task.run(callback);
 }, 2);
 
@@ -52,50 +54,43 @@ const sendWebContentsMessage = (thread, data) => {
     }
 };
 
-/**
- * 发送操作系统级别的通知
- * 
- * @param title
- * @param message
- * 
- */
-const sendNotification = (title, message) => {
-    notifier.notify({
-        title,
-        message,
-    });
-};
-
-
-
+// const sleepPromise = function(interval) {
+//     return new Promise(resolve => {
+//         setTimeout(resolve, interval);
+//     })
+// };
 /**
  * 获取指定响应流并写入指定文件指定位置
  * 
- * @param index
  * @param file
+ * @param indexFile
+ * @param indexParts
  * 
  */
-const downloadParts = (index, file) => new Promise((resolve, reject) => {
+const downloadParts = (file, indexFile, indexParts) => new Promise((resolve, reject) => {
+
+    if (false === file.isUnderway) {
+        return reject('isUnderway-------------------downloadParts---------------------------false' + file.name);
+    }
+
     let startTime = 0;
     let endTime = 0;
     let receivedBytes = 0;
-    let parts = file.Parts[index];
-
+    let parts = file.Urls[indexFile].Parts[indexParts];
+    //console.log('parts.startData--------------------------------parts.receivedBytes', parts.startData, parts.receivedBytes);
     //续传主进程与渲染进程下载进度同步
-    if (parts.receivedBytes != 0) {
-        //接收的字节 不需要加1  比如0---9   10个字节  parts.receivedBytes = 5  表示字节个数（0,1,2,3,4）  起始位5刚好
-        parts.startData = parts.startData + parts.receivedBytes;
-        file.Parts[index].startData = parts.startData;
-    }
-
+    // if (parts.receivedBytes != 0) {
+    //     //接收的字节 不需要加1  比如0---9   10个字节  parts.receivedBytes = 5  表示字节个数（0,1,2,3,4）  起始位5刚好
+    //     parts.startData = parts.startData + parts.receivedBytes;
+    //     file.Urls[indexFile].Parts[indexParts].startData = parts.startData;
+    // }
+    //console.log('parts.startData-----------------------parts.receivedBytes', parts.startData, parts.receivedBytes);
     //url处理
     file.Urls.forEach((item) => {
         if (path.join(parts.downloads, `\\${item.path}`) == path.join(parts.downloadPath)) {
             parts.url = item.url;
         }
     })
-
-    console.log('parts.chunkNumCurrent------------------------parts.startData-----------------------parts.receivedBytes', parts.chunkNumCurrent, parts.startData, parts.receivedBytes);
 
     if (!fs.existsSync(parts.downloads))
     fs.mkdirSync(parts.downloads);
@@ -107,21 +102,15 @@ const downloadParts = (index, file) => new Promise((resolve, reject) => {
         "method": 'GET',           
         "url": parts.url,
         "forever": true,
+        "timeout": 30000,
         "headers": {
             "Range": 'bytes=' + parts.startData + '-' + parts.endData,
             //"Connection": "keep-alive"
         }
     };
-    let options = {
-        "start": parts.startData,
-        "flags": 'r+'
-    };
-
     let req = request(params);
-    let out = fs.createWriteStream(parts.downloadPath, options);//返回可写流
-
     req.on('error', (e) => {
-        console.log("请求遇到问题----------------------:", e.message, parts.chunkNumCurrent, file.Parts[index].receivedBytes);
+        console.log("请求遇到问题----------------------:", e.message, parts.chunkNumCurrent, file.Urls[indexFile].Parts[indexParts].receivedBytes);
         out.end();
 
         downloadRetry.fileId = file.FileId;
@@ -132,17 +121,14 @@ const downloadParts = (index, file) => new Promise((resolve, reject) => {
         sendWebContentsMessage('DOWNLOAD_ERROR_NET', file);
         return reject('网络出现问题---文件块序号' + parts.chunkNumCurrent);
     });
-
-    // req.on("socket", function (socket) {
-    //     //console.log('socket============================', socket);
-    //     socket.on("close", function() {
-    //         console.log("socket has been closed");
-    //     });
-    // });
-
-    
+//console.log('请求头参数--------------------------------', params);
+    let options = {
+        "start": parts.startData,
+        "flags": 'r+'
+    };
+    let out = fs.createWriteStream(parts.downloadPath, options);//返回可写流
     out.on('error', (e) => { 
-        console.log('可写流遇到问题----------------------', e, parts.name, parts.chunkNumCurrent, file.Parts[index].receivedBytes);
+        console.log('可写流遇到问题----------------------', e, parts.name, parts.chunkNumCurrent, file.Urls[indexFile].Parts[indexParts].receivedBytes);
         out.end();
 
         downloadRetry.fileId = file.FileId;
@@ -154,15 +140,23 @@ const downloadParts = (index, file) => new Promise((resolve, reject) => {
         return reject('文件块序号--------' + parts.chunkNumCurrent);
     });
 
+
+    // req.on("socket", function (socket) {
+    //     //console.log('socket============================', socket);
+    //     socket.on("close", function() {
+    //         console.log("socket has been closed");
+    //     });
+    // });
+
     out.on('finish', () => {
-        console.error('写入已完成', parts.name, parts.chunkNumCurrent, file.Parts[index].receivedBytes);
+        //console.error('写入已完成', parts.name, parts.chunkNumCurrent, file.Urls[indexFile].Parts[indexParts].receivedBytes);
     });
 
     req.pipe(out);
 
     //流字节大小
     req.on('response', (res) => { 
-        console.log(`响应头=========================: ${JSON.stringify(res.headers)}`);
+        //console.log(`响应头=========================: ${JSON.stringify(res.headers)}`);
         if (206 === res.statusCode) {
             //parts.totalBytes = parseInt(res.headers['content-length'], 10);
             startTime = new Date().getTime();
@@ -205,24 +199,52 @@ const downloadParts = (index, file) => new Promise((resolve, reject) => {
             return resolve(parts.chunkNumCurrent);
         }
 
+        //主动断开处理
+        if (false === file.isUnderway) {
+            req.abort();
+        }
+
         //向 render 进程通信
         if (true === file.isUnderway) {
             endTime = new Date().getTime();
             receivedBytes += chunk.length;
-            file.Parts[index].receivedBytes += chunk.length;
+            file.Urls[indexFile].Parts[indexParts].receivedBytes += chunk.length;
+            file.Urls[indexFile].Parts[indexParts].startData     += chunk.length;
 
             //接收时间超过1秒或接收完毕  向render进程发送事件
-            if (file.Parts[index].receivedBytes == parts.totalBytes || (endTime - startTime) > 1000) {
-                //console.log('file.Parts[index].receivedBytes-----parts.totalBytes-----parts.chunkNumCurrent', file.Parts[index].receivedBytes, parts.totalBytes, parts.chunkNumCurrent);
-                file.averageSpeed = receivedBytes;
-                file.chunkNumCurrent = parts.chunkNumCurrent;
+            if (file.Urls[indexFile].Parts[indexParts].receivedBytes == parts.totalBytes || (endTime - startTime) > 1000) {
+
+                file.Urls[indexFile].Parts[indexParts].averageSpeed = receivedBytes;
                 file.milliTime = endTime - startTime;
+                if (file.Urls[indexFile].Parts[indexParts].receivedBytes == parts.totalBytes) {
+                    file.Urls[indexFile].Parts[indexParts].isComplete = true;
+                    //小于1M 的 文件块
+                    if(parts.totalBytes < 1048576) {
+                        file.milliTime = file.milliTime + 500;
+                    }
+                }
                 //存在通信队列 不能立即中断
                 try {
-                    sendWebContentsMessage('DOWNLOAD_PROGRESS', file);
+                    let sendData = {
+                        task: {
+                            FileId:         file.FileId,
+                            Parts:          file.Urls[indexFile].Parts[indexParts],
+                            fileSize:       file.Urls[indexFile].size,
+                            error:	        file.error,
+                            paused:	        file.paused,
+                            status:	  	    file.status,
+                            isUnderway:	    file.isUnderway,
+                            isRemove:	    file.isRemove,
+                            size:		    file.size,
+                            milliTime:      file.milliTime,
+                            receivedBytes:  receivedBytes
+                        },
+                        indexFile: indexFile,
+                        indexParts: indexParts,
+                    };
+                    sendWebContentsMessage('DOWNLOAD_PROGRESS', sendData);
                 } catch (e) {
                     console.log('异常---------------DOWNLOAD_PROGRESS', e);
-                    sendWebContentsMessage('DOWNLOAD_ERROR', e);
                 }
                 startTime = endTime;
                 receivedBytes = 0;
@@ -233,165 +255,251 @@ const downloadParts = (index, file) => new Promise((resolve, reject) => {
     //文件接收结束
     req.on('end', () => {
         req.abort();
-        console.log('文件块接收结束=======================req==end',parts.downloadPath, parts.chunkNumCurrent, file.Parts[index].receivedBytes);
+        //console.log('文件块接收结束=======================req==end',parts.downloadPath, file.Urls[indexFile].Parts[indexParts].receivedBytes, file.isUnderway);
         if (true === file.isUnderway) {
-            //网络中途出问题是 会不等 ,而且程序有可能不会跑到者  所以不在此处 reject
-            if (file.chunkSize === file.Parts[index].receivedBytes || file.pieces !==  parts.chunkNumCurrent) {
-                parts.isComplete = true;
-                return resolve(parts.chunkNumCurrent);
-            }
-            //最后一块基本不会等于
-            if ((parts.endData - parts.startData) === file.Parts[index].receivedBytes || file.pieces ===  parts.chunkNumCurrent) {
-                parts.isComplete = true;
-                return resolve(parts.chunkNumCurrent);
+            if (file.Urls[indexFile].Parts[indexParts].totalBytes === file.Urls[indexFile].Parts[indexParts].receivedBytes) {
+                //小于1M 的 文件块
+                if (file.Urls[indexFile].Parts[indexParts].totalBytes < 1048576) {
+                    setTimeout(() => {
+                        return resolve(parts.chunkNumCurrent);
+                    }, 500);
+                } else {
+                    return resolve(parts.chunkNumCurrent);
+                }
+
             }
         }
     });
 
 });
 
-/**
- * 控制文件块下载
- * 
- * @param index
- * @param file
- * @param cbParts
- * 
- */
-const downloadFile = (index, file, cbParts) => {
-
-    //文件块队列回调
-    if (false === file.isUnderway) {
-        console.log('========================块块块块块块块块=========================', index);
-        cbParts(index);
-    }
-
-    if (true === file.isUnderway) {
-        downloadParts(index, file)
-        .then(function (data) {
-            console.log('回调11111111111111111-------then---------downloadParts', data);
-            cbParts(data);
-        })
-        .catch(function (data) {
-            console.log('回调22222222222222222--------catch--------downloadParts', data);
-            cbParts(index);
-        })
-    }
-
-}
 
 /**
  * 创建文件块数据
  * 
  * @param file
+ * @param cutFile
  * 
  */
-const createFileParts = (file) => {
-
-    file.folder_path.forEach((item) => {
-        if (!fs.existsSync(path.join(file.downloads, `\\${item}`)))
-        fs.mkdirSync(path.join(file.downloads, `\\${item}`));
-    });
+const createFileParts = (file, cutFile) => {
 
     const chunkSize = 1024 * 1024 * 100;
-    let piecesAll = 0;
     let chunkNumCurrent = 1;
 
-    file.Urls.forEach((item) => {
-        let pieces = Math.ceil(item.size / chunkSize);//总共的分片数 
-        piecesAll += pieces;
-        for (let i = 0; i < pieces ; i++) {
-            let obj = {
-                name: item.name,
-                url: '',
-                downloadPath: path.join(file.downloads, `\\${item.path.replace(/\:|\*|\?/g,"")}`),
-                downloads: file.downloads,
-                receivedBytes: 0,
-                totalBytes: 0,
-                chunkNumCurrent: chunkNumCurrent,
-                startData: i * chunkSize,
-                endData: Math.min(item.size, (i+1) * chunkSize - 1),
-                isComplete: false
-            }
-            obj.totalBytes = obj.endData - obj.startData + 1;
-            if ((i + 1) == pieces) {
-                obj.totalBytes = obj.endData - obj.startData
-            }
-            file.Parts.push(obj);
-            chunkNumCurrent ++;
+    let pieces = Math.ceil(cutFile.size / chunkSize);//总共的分片数 
+    for (let i = 0; i < pieces ; i++) {
+        let obj = {
+            name: cutFile.name,
+            url: '',
+            downloadPath: path.join(file.downloads, `\\${cutFile.path.replace(/\:|\*|\?/g,"")}`),
+            downloads: file.downloads,
+            averageSpeed: 0,
+            receivedBytes: 0,
+            totalBytes: 0,
+            chunkNumCurrent: chunkNumCurrent,
+            startData: i * chunkSize,
+            endData: Math.min(cutFile.size, (i+1) * chunkSize - 1),
+            isComplete: false
         }
-    });
+        obj.totalBytes = obj.endData - obj.startData + 1;
+        if ((i + 1) == pieces) {
+            obj.totalBytes = obj.endData - obj.startData
+        }
+        //判断块之前切过
+        if (!cutFile.Parts.hasOwnProperty(i)) {
+            cutFile.Parts.splice(i, 1, obj);
+        }
+        chunkNumCurrent ++;
+    }
 
-    file.chunkSize = chunkSize;
-    file.totalBytes = file.size;
-    file.pieces = piecesAll;
-    file.downloadPath = path.join(file.downloads, `\\${file.name}`);
-    return file;
+    return cutFile;
 }
 
 
 /**
- * 设置并下载文件
+ * 校验文件信息
  * 
  * @param file
- * @param cbFile
+ * @param indexFile
  * 
  */
-const setFileAndDownload= async (file, cbFile) => {
+const checkFileMessage = (file, indexFile) => new Promise((resolve, reject) => {
+    let fileMessage = file.Urls[indexFile];
+    let params ={           
+        "method": 'get',
+        "url": fileMessage.url,
+        "forever": true,
+        "timeout": 15000,
+    }
 
-    //定义一个queue， 设worker数量为2
-    var partsQueue = async.queue(function(task, callback){
+    try {
+        let req = request(params);
+        req.on('error', (e) => {
+            let sendData = {
+                FileId: file.FileId,
+                indexFile: indexFile,
+                tip: e.message,
+            };
+            console.log('请求遇到问题========================error', e.message);
+            sendWebContentsMessage('DOWNLOAD_ERROR_SIGN', sendData);
+            req.abort();
+            return reject();
+        });
+        req.on('response', (res) => { 
+            let totalBytes = parseInt(res.headers['content-length'], 10)
+            if (200 === res.statusCode && !isNaN(totalBytes)) {
+                if (fileMessage.size != totalBytes) {
+                    console.log('接口文件大小========================================实际文件大小', fileMessage.size, totalBytes);
+                }
+                req.abort();
+                return resolve(totalBytes);
+            } else {
+                console.log('请求遇到问题========================资源不存在');
+                let sendData = {
+                    FileId: file.FileId,
+                    indexFile: indexFile,
+                    tip: '资源不存在',
+                };
+                sendWebContentsMessage('DOWNLOAD_ERROR_SIGN', sendData);
+                req.abort();
+                return reject();
+            }
+        });
+    } catch (e) {
+        let sendData = {
+            FileId: file.FileId,
+            indexFile: indexFile,
+            tip: e.message,
+        };
+        console.log('请求遇到问题========================trycache', e.message);
+        sendWebContentsMessage('DOWNLOAD_ERROR_SIGN', sendData);
+        return reject();
+    }
+
+});
+
+/**
+ * 块队列
+ * 
+ * @param file
+ * @param indexFile
+ * @param cb
+ * 
+ */
+const setPartsQueue= async (file, indexFile, cbFiles) => {
+    //定义一个 块队列 
+    let partsQueue = async.queue(function(task, callback){
         task.run(callback);
     }, 3);
 
-    // 当所有任务都执行完以后，将调用该函数
+    //块队列执行完成时 触发
     partsQueue.drain = function() {
-        if (true ===  downloadPause.status && downloadPause.fileId == file.FileId) {
-            downloadPause.fileId = '';
-            downloadPause.status = false;
-        }
-
-        if (true ===  downloadRemove.status && downloadRemove.fileId == file.FileId) {
-            downloadRemove.fileId = '';
-            downloadRemove.status = false;
-        }
-
-        if (true ===  downloadRetry.status && downloadRetry.fileId == file.FileId) {
-            downloadRetry.fileId = '';
-            downloadRetry.status = false;
-        }
-
-        console.log('all tasks have been processed====================partsQueue', file.downloadPath);
-        if (false === file.paused && false === file.isRemove && false === file.error && false == clearAll.status) {
-            //计算文件 md5
-            //let rs = fs.createReadStream(path.join(file.downloadPath));
-            // let rs = fs.createReadStream('E:\\迅雷下载\\cn_windows_10_business_edition_version_1809_updated_sept_2018_x86_dvd_31238f21.iso');
-            
-            // let hash = crypto.createHash('md5');
-            // rs.on('data', hash.update.bind(hash));
-            // rs.on('end', function () {
-            //   console.log('hash====================================', hash.digest('hex'));
-            // });
-        
-            sendNotification(file.name+'文件下载完成!', 'Link has been copied to clipboard');
-        }
-        //文件队列回调  进行下个任务
-        cbFile(file.downloadPath);
+        //console.log('partsQueue------------------------------------------------------------------completed');
+        cbFiles(file.downloadPath);
     }
 
-    file.Parts.forEach((item, index) => {
-        if (false === item.isComplete) {
-            partsQueue.push({name : item.name, run: function(cbParts){
-                downloadFile(index, file, cbParts);
-            }}, function(data){
-                //console.log(item.name + '文件块队列 executed=============', data);
+    try {
+        if (false == file.Urls[indexFile].isComplete) {
+            //文件信息校验
+            let checkSize = await checkFileMessage(file, indexFile);
+
+            //大小校验处理
+            if (Number(checkSize) != Number(file.Urls[indexFile].size)) {
+                file.size = file.size + (checkSize - file.Urls[indexFile].size);
+                file.Urls[indexFile].size = checkSize;
+            }
+        }
+
+        //创建文件块
+        if (file.Urls[indexFile].Parts.length == 0) {
+            file.Urls[indexFile] = createFileParts(file, file.Urls[indexFile]);
+        }
+        
+
+        //设置块队列
+        file.Urls[indexFile].Parts.forEach((itemParts, indexParts) => {
+            if (false === itemParts.isComplete) {
+                partsQueue.push({name : itemParts.name, run: function(cbParts){
+                    //await sleepPromise(300);
+                    /**********************块下载回调处理**********************/
+                    downloadParts(file, indexFile, indexParts)
+                    .then(function (vDown) {
+                        cbParts(vDown);
+                    })
+                    .catch(function (eDown) {
+                        console.log('catch块下载功能--------------------------------reject', eDown, file.isUnderway);
+                        if (false === file.isUnderway) {
+                            partsQueue.kill();
+                            cbFiles('filesQueue-kill');
+                        }
+                    })
+                }}, function(errPQueue){
+                });
+            }
+        });
+
+    } catch(e) {
+
+        //处理校验失败的文件
+        cbFiles();
+    }
+
+}
+
+/**
+ * 文件队列
+ * 
+ * @param file
+ * @param cb
+ * 
+ */
+const setFilesQueue= async (file, cb) => {
+    //定义一个文件队列
+    let filesQueue = async.queue(function(task, callback){
+        task.run(callback);
+    }, 1);
+
+    // 当所有任务都执行完以后，将调用该函数
+    filesQueue.drain = function() {
+        console.log('filesQueue------------------------------------------------------------------completed');
+        sendWebContentsMessage('DOWNLOAD_FILE_CHECK', file.FileId);
+        cb(file.downloadPath);
+    }
+
+    file.Urls.forEach((itemFile, indexFile) => {
+        //已标记完成的文件 不进入文件队列
+        if (false === itemFile.isComplete) {
+            //console.log('正在进入文件队列FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF', file.isUnderway);
+            filesQueue.push({name : itemFile.name, run: function(cbFiles){
+                //设置块队列
+                setPartsQueue(file, indexFile, cbFiles);
+
+            }}, function(errFQueue){
+                //处理块队列异常
+                if ('filesQueue-kill' == errFQueue) {
+                    console.log('filesQueue----------------------------------------------err'+errFQueue);
+                    filesQueue.kill();
+                    
+                    if (downloadPause.fileId == file.FileId) {
+                        downloadPause.fileId = '';
+                        downloadPause.status = false;
+                    }
+                    if (downloadRemove.fileId == file.FileId) {
+                        downloadRemove.fileId = '';
+                        downloadRemove.status = false;
+                    }
+                    if (downloadRetry.fileId == file.FileId) {
+                        downloadRetry.fileId = '';
+                        downloadRetry.status = false;
+                    }
+                    cb();
+                }
+
             });
         }
     });
 
 }
-
-
 
 /**
  * 管理文件上传
@@ -414,7 +522,8 @@ class DownloadService {
     downloadFileQueue (fileList) {
 
         downloadQueue.drain = function() {
-            console.log('all tasks have been processed====================downloadQueue');
+            console.log('downloadQueue------------------------------------------------------------------completed');
+
             if (true === clearAll.status) {
                 sendWebContentsMessage(clearAll.event, true);
                 clearAll.event = 'DOWNLOAD_CLEAR_ALL_CALL';
@@ -423,22 +532,33 @@ class DownloadService {
         }
 
         fileList.forEach((item) => {
+            //提前创建好文件夹
+            item.folder_path.forEach((folderPath) => {
+                if (!fs.existsSync(path.join(item.downloads, `\\${folderPath}`)))
+                fs.mkdirSync(path.join(item.downloads, `\\${folderPath}`));
+            });
+
             //暂停的文件不进入文件下载队列， 处理应用重启时的问题
             if(false === item.paused){
-                if (0 === item.Parts.length) {
-                    console.log('===========DOWNLOAD_START===============', item.name);
-                    item = createFileParts(item);
-                    sendWebContentsMessage('DOWNLOAD_START', item);
-                }
-                downloadQueue.push({name : item.name, run: function(cbFile){
+                
+                console.log('下载任务大小===================================', item.size, item.isUnderway);
+                if (0 === item.Urls[0].Parts.length) {
                     item.status = 'underway';
                     item.isUnderway = true;
-                    setFileAndDownload(item, cbFile);
+                    sendWebContentsMessage('DOWNLOAD_START', item);
+                }
+
+                downloadQueue.push({name : item.name, run: function(cb){
+                    item.status = 'underway';
+                    item.isUnderway = true;
+
+                    //设置文件队列
+                    setFilesQueue(item, cb)
+
                 }}, function(data){
-                    console.log(item.name + '文件队列 executed===========', data);
+                    console.log('==========================下载队列 executed==========================', data);
                 });
             }
-
         });
 
     }
@@ -457,7 +577,7 @@ class DownloadService {
     }
 
     /**
-     * 文件下载 暂停
+     * 文件下载 取消
      * 
      * @param FileId
      * 
@@ -490,7 +610,6 @@ class DownloadService {
         clearAll.event = data.event;
         clearAll.status = data.status;
     }
-    
 
 }
 

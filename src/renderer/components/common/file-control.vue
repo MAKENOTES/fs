@@ -15,13 +15,15 @@
             <div class="file-control-size">{{formatedSize}}</div>
             <div class="file-control-status">
                 <span v-show="status !== 'underway'">{{statusText}}</span>
+                <span v-show="status === 'error'" style="color: red;cursor: pointer;" @click="openFileError">
+                    查看
+                </span>
                 <span v-show="status === 'underway'">
                     <span>{{progressStyle.progress}}</span>
                     <em>{{formatedAverageSpeed}}</em>
                     <i>{{formatedTimeRemaining}}</i>
                 </span>
             </div>
-            
             <div v-show="true === isComplete && 'download' == this.file.operate" class="file-control-meta">
                 <span  @click="openFile">
                     <svg class="icon-self-transmit" aria-hidden="true" >
@@ -179,6 +181,9 @@
             },
             retry () {
                 this.$emit('retry', this.file.FileId);
+            },
+            openFileError () {
+                this.$emit('openFileError', this.file.FileId);
             },
             processResponse (message) {
                 let res = message

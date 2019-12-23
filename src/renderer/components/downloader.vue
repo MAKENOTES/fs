@@ -9,6 +9,7 @@
                     @resume="resume"
                     @remove="remove"
                     @retry="retry"
+                    @openFileError="openFileError"
                 ></file-control>
             </li>
         </ul>
@@ -43,6 +44,9 @@
             },
             retry (FileId) {
                 this.$emit('retry', FileId);
+            },
+            openFileError (FileId) {
+                this.$emit('openFileError', FileId);
             }
         },
         created () {

@@ -13,11 +13,15 @@
         <div style="height:30px">
             <!-- <uploader-btn @addFileBtn="addFileBtn">上传</uploader-btn> -->
 
-            <Button class="btn-self" @click="downloadFileBtn" >
-                <svg class="icon-self-operate" aria-hidden="true" >
-                    <use xlink:href="#icons-download"></use>
-                </svg>
-                下载
+            <Button class="btn-self" @click="downloadFileBtn" :loading="loading">
+                <span v-if="!loading">
+                    <svg class="icon-self-operate" aria-hidden="true" >
+                        <use xlink:href="#icons-download"></use>
+                    </svg>
+                    下载
+                </span>
+                <span v-else>下载</span>
+
             </Button>
 
             <!-- <Button class="btn-self" @click="makeFolder = true" >
@@ -80,7 +84,7 @@
                 <div>Loading</div>
             </Spin>
             <Breadcrumb style="height: 21px;">
-                <BreadcrumbItem to="/"  v-for="(item,index) in breadList">
+                <BreadcrumbItem to="/"  v-for="(item,index) in breadList" :key="index">
                     <span @click="choiseBread(item.cm_folder_pid, item.cm_folder_id)">
                     <Icon  v-if="index==0" type="ios-home-outline"></Icon>
                     <Icon  v-if="index>0" type="ios-folder-outline"></Icon> 
@@ -228,6 +232,7 @@
     import path from 'path'
     const fs = require('fs');
     const md5 = require('md5');
+    const { exec } = require('child_process');
 
     var ceph = {
         name: 'ceph',
@@ -289,6 +294,7 @@
                 targetKeys2: [],
                 isSpinShow: false,
                 isSpinInitShow: true,
+                loading: false
             }
         },
         created() {
@@ -351,17 +357,37 @@
                 });
                 //下载开始
                 this.$electron.ipcRenderer.on('DOWNLOAD_START', (e, file) => {
-                    console.log('---DOWNLOAD_START------------------渲染层', e, file);
+                    console.log('---DOWNLOAD_START------------------渲染层', e, file, file.data.isUnderway);
                     this.$nextTick(() => {
-                        this.$store.dispatch('downloadList/pushList', file.data);
+                        let pushStatus = true;
+                        this.downloadList.forEach((folder, index) => {
+                            if (folder.FileId == file.data.FileId) {
+                                pushStatus = false;
+                            }
+                        });
+                        if (true === pushStatus) {
+                            this.$store.dispatch('downloadList/pushList', file.data);
+                        }
                     });
                 });
                 //下载进度
-                this.$electron.ipcRenderer.on('DOWNLOAD_PROGRESS', (e, file) => {
-                    //console.log('---DOWNLOAD_PROGRESS------------------渲染层', e, file);
+                this.$electron.ipcRenderer.on('DOWNLOAD_PROGRESS', (e, receive) => {
+                    //console.log('---DOWNLOAD_PROGRESS------------------渲染层', e, receive);
                     this.$nextTick(() => {
-                        this.updateDownloadList(file.data);
+                        this.updateDownloadList(receive.data.task, receive.data.indexFile, receive.data.indexParts);
                     });
+                });
+                //标记校验失败的文件
+                this.$electron.ipcRenderer.on('DOWNLOAD_ERROR_SIGN', (e, receive) => {
+                    console.log('DOWNLOAD_ERROR_SIGN------------------渲染层', e, receive);
+                    this.$nextTick(() => {
+                        this.signCheckErrorFile(receive.data.FileId, receive.data.indexFile, receive.data.tip);
+                    });
+                });
+                //下载任务校验
+                this.$electron.ipcRenderer.on('DOWNLOAD_FILE_CHECK', (e, file) => {
+                    console.log('DOWNLOAD_FILE_CHECK------------------渲染层', e, file.data);
+                    this.checkDownloadTask(file.data);
                 });
                 //下载重试
                 this.$electron.ipcRenderer.on('DOWNLOAD_ERROR_NET', (e, file) => {
@@ -441,12 +467,14 @@
                             folderIds.push(item.id);
                         }
                     });
+                    this.bus.$emit('ceph_index_loading', true);
                     this.$axios({
                         method: 'post',
                         url: apis.getUrl('folder_url_update'),
                         data: {cm_folder_ids: folderIds, cm_user_id: this.cm_user_id}
                     })
                     .then(res => {
+                        this.bus.$emit('ceph_index_loading', false);
                         if (res.data.c === 0) {
                             let urlData = res.data.d;
                             let tempFile = [];
@@ -454,7 +482,12 @@
                                 if (this.cm_user_username == item.username) {
                                     //更新url
                                     if (urlData[item.id].length > 0) {
-                                        item.Urls =  urlData[item.id];
+                                        Array.from(item.Urls).forEach((item1, index1) => {
+                                            if (item.Urls[index1].name == urlData[item.id][index1].name) {
+                                                //console.log('文件签名url替换==================', urlData[item.id][index1].name, item.Urls[index1].url, urlData[item.id][index1].url);
+                                                item.Urls[index1].url = urlData[item.id][index1].url;
+                                            }
+                                        });
                                     }
                                     //其余初始化
                                     this.$store.dispatch('downloadList/initList', item);
@@ -770,7 +803,7 @@
                 if ('undefined' === typeof(dbPath)) { return false;}
 
                 if(this.selectList.length <= 0){
-                    this.$Message.error('请勾选文件需要下载的文件！');
+                    this.$Message.error('请勾选文件需要下载的文件或点击下载！');
                     this.selectList = [];
                     return false;
                 }
@@ -778,10 +811,10 @@
                 let Already = true;
                 let downAlready = [];
                 Array.from(this.downloadList).forEach((item, index) => {
-                    downAlready.push(item.name);
+                    downAlready.push(item.id);
                 });
                 Array.from(this.selectList).forEach((item, index) => {
-                    if (downAlready.indexOf(item.cm_folder_name) !== -1) {
+                    if (downAlready.indexOf(item.cm_folder_id) !== -1) {
                         this.$Message.error('已在下载列表中');
                         Already = false;
                     }
@@ -789,7 +822,7 @@
                 if (false === Already) {
                     return false;
                 }
-
+                this.loading = true;
                 this.$axios({
                     method: 'post',
                     url: apis.getUrl('folder_batch_down'),
@@ -798,32 +831,84 @@
                 .then(res => {
                     if (res.data.c === 0) {
                         let downloadList = [];
+                        let totalSize = 0;
                         downloadList = res.data.d;
                         Array.from(downloadList).forEach((item, index) => {
+                            if (0 > item.Urls.length) {
+                                this.$Message.error({content:`${item.name}下载失败`, duration: 5});
+                                return;
+                            }
                             //如果下载文件存在
                             if (fs.existsSync(path.join(dbPath.path, `\\${item.name}`))) {
-                                downloadList[index].name = item.time+item.name;
                                 if (downloadList[index].folder_path) {
                                     Array.from(downloadList[index].folder_path).forEach((item1, index1) => {
-                                        downloadList[index].folder_path[index1] = item.time+item1;
+                                        downloadList[index].folder_path[index1] = item1.slice(0,item.name.length)+item.time+item1.slice(item.name.length);
                                     });
                                 }
                                 if (downloadList[index].file_path) {
                                     Array.from(downloadList[index].file_path).forEach((item2, index2) => {
-                                        downloadList[index].file_path[index2] = item.time+item2;
+                                        if (downloadList[index].file_path.length == 1) {
+                                            //单文件
+                                            if (item.name.lastIndexOf(".") > 0) {
+                                                downloadList[index].file_path[index2] = item.name.substring(0, item.name.lastIndexOf("."))+item.time+item.name.substring(item.name.lastIndexOf('.'));
+                                            } else {
+                                                //单文件夹 单文件
+                                                downloadList[index].file_path[index2] = item2.slice(0,item.name.length)+item.time+item2.slice(item.name.length);
+                                            }
+                                        } else {
+                                            downloadList[index].file_path[index2] = item2.slice(0,item.name.length)+item.time+item2.slice(item.name.length);
+                                        }
                                     });
                                 }
                                 if (downloadList[index].Urls) {
                                     Array.from(downloadList[index].Urls).forEach((item3, index3) => {
-                                        downloadList[index].Urls[index3].path = item.time+item3.path;
+                                        if (downloadList[index].Urls.length == 1) {
+                                            //单文件
+                                            if (item.name.lastIndexOf(".") > 0) {
+                                                downloadList[index].Urls[index3].path = item.name.substring(0, item.name.lastIndexOf("."))+item.time+item.name.substring(item.name.lastIndexOf('.'));
+                                            } else {
+                                                //单文件夹 单文件
+                                                downloadList[index].Urls[index3].path = item3.path.slice(0,item.name.length)+item.time+item3.path.slice(item.name.length);
+                                            }
+                                        } else {
+                                            downloadList[index].Urls[index3].path = item3.path.slice(0,item.name.length)+item.time+item3.path.slice(item.name.length);
+                                        }
                                     });
                                 }
+                                if (downloadList[index].folder_path.length == 0) {
+                                    downloadList[index].name = item.name.substring(0, item.name.lastIndexOf("."))+item.time+item.name.substring(item.name.lastIndexOf('.'));
+                                } else {
+                                    downloadList[index].name = item.name + item.time;
+                                }
                             }
-
+                            totalSize += item.size;
                             downloadList[index].downloads = dbPath.path;
                         })
-                        this.$electron.ipcRenderer.send('DOWNLOAD_FILES', downloadList)
+                        let caption = dbPath.path.substring(0,2);
+                        exec(`wmic LOGICALDISK where "name='${caption}'" get freespace`, (err, stdout, stderr) => {
+                            if(err || stderr) {
+                                console.log("root path open failed" + err + stderr);
+                                this.$electron.ipcRenderer.send('DOWNLOAD_FILES', downloadList);
+                                this.loading = false;
+                                return false;
+                            } else {
+                                this.downloadList.forEach((folder, index) => {
+                                    totalSize += folder.size;
+                                })
+                                let list = stdout.trim().split('\n');
+                                let freeSize = list[1];
+                                console.log('磁盘剩余空间---------------',freeSize, totalSize);
+                                if (Number(totalSize) >= Number(freeSize)) {
+                                    this.$Message.error('磁盘剩余空间不够！！！');
+                                    this.loading = false;
+                                    return false;
+                                }
+                                this.$electron.ipcRenderer.send('DOWNLOAD_FILES', downloadList)
+                                this.loading = false;
+                            }
+                        });
                     } else {
+                        this.loading = false;
                         this.$Message.error(res.data.m);
                     }
                 });
@@ -831,10 +916,10 @@
                 
             },
             //更新文件下载列表 vuex
-            updateDownloadList (file) {
+            updateDownloadList (task, indexFile, indexParts) {
                 let isUpdate = true;
                 this.listenerStatus.downloadPause.forEach((item, index) => {
-                    if (this.listenerStatus.downloadPause[index].FileId == file.FileId) {
+                    if (this.listenerStatus.downloadPause[index].FileId == task.FileId) {
                         isUpdate = false;
                     }
                 })
@@ -847,29 +932,35 @@
                 
                 //console.log('===================文件更新状态===================', isUpdate, this.listenerStatus);
                 this.downloadList.forEach((folder, index) => {
-                    if (folder.FileId == file.FileId) {
-                        let chunkNumCurrent = file.chunkNumCurrent - 1;
-                        folder.Parts[chunkNumCurrent].receivedBytes = file.Parts[chunkNumCurrent].receivedBytes
-                        //console.log('-----------当前块-----------', folder.Parts[chunkNumCurrent]);
-                        
-                        //相关信息修改
-                        folder.error  = file.error;
-                        folder.paused = file.paused;
-                        folder.status = file.status;
-                        folder.isUnderway = file.isUnderway;
-                        folder.isRemove   = file.isRemove;
-                        
-                        folder.receivedBytes = folder.receivedBytes + file.averageSpeed;
-                        folder.progress = parseInt((folder.receivedBytes * 100) / folder.totalBytes);
-                        folder.milliTime = folder.milliTime + file.milliTime;
-                        folder.averageSpeed = Math.ceil(folder.receivedBytes / Math.ceil(folder.milliTime / 1000)) * 3;//平均速度 与 worker 数有关
-                        console.log('原来的字节----------接收的字节----------总接收的字节', this.downloadList[index].receivedBytes, file.averageSpeed, folder.receivedBytes);
-                        // console.log('平均速度--------------所消耗总时间', folder.averageSpeed, folder.milliTime);
+                    if (folder.FileId == task.FileId) {
+                        //更新 指定文件块数据信息
+                        folder.Urls[indexFile].Parts.splice(indexParts, 1, task.Parts);
 
-                        //处理文件块是否完成的状态标识
-                        if (folder.Parts[chunkNumCurrent].totalBytes == folder.Parts[chunkNumCurrent].receivedBytes) {
-                            folder.Parts[chunkNumCurrent].isComplete = true;
+                        //校验文件大小
+                        folder.Urls[indexFile].size = task.fileSize;
+
+                        //更新 指定文件信息
+                        folder.Urls[indexFile].receivedBytes += task.receivedBytes;
+                        if (folder.Urls[indexFile].receivedBytes == folder.Urls[indexFile].size) {
+                            folder.Urls[indexFile].isComplete = true;
+                            folder.Urls[indexFile].error = false;
                         }
+
+                        //相关信息修改
+                        folder.error      = task.error;
+                        folder.paused     = task.paused;
+                        folder.status     = task.status;
+                        folder.isUnderway = task.isUnderway;
+                        folder.isRemove   = task.isRemove;
+                        
+                        folder.size       = task.size;
+                        folder.totalBytes = task.size;
+                        folder.receivedBytes = folder.receivedBytes + task.receivedBytes;
+                        folder.progress = parseInt((folder.receivedBytes * 100) / folder.totalBytes);
+                        folder.milliTime = folder.milliTime + task.milliTime;
+                        folder.averageSpeed = Math.ceil(folder.receivedBytes / Math.ceil(folder.milliTime / 1000))*3;//平均速度 与 worker 数有关
+                        //console.log('接收的字节----------接收的文件', task.receivedBytes, folder.name);
+
                         //文件完成
                         if (folder.progress == 100) {
                             console.log('----------总接收的字节----------', folder.receivedBytes);
@@ -886,14 +977,78 @@
                             folder.isUnderway = false;
                             folder.isComplete = true;
                             folder.statusText = '下载完成';
-                            folder.Parts = [];
-                            this.$store.dispatch('completedList/pushList', folder)
                         }
                         //文件下载列表更新
                         if (true === isUpdate) {
-                            console.log('===================文件更新状态===================', isUpdate, this.listenerStatus);
-                            let indexFile = { index: index, file: folder }
-                            this.$store.dispatch('downloadList/updateFile', indexFile);
+                            let baseFolder = {
+                                    FileId:folder.FileId,
+                                    error: folder.error,
+                                    paused: folder.paused,
+                                    status: folder.status,
+                                    isUnderway: folder.isUnderway,
+                                    isRemove: folder.isRemove,
+                                    size: folder.size,
+                                    totalBytes: folder.totalBytes,
+                                    receivedBytes: folder.receivedBytes,
+                                    progress: folder.progress,
+                                    milliTime: folder.milliTime,
+                                    averageSpeed: folder.averageSpeed,
+                                    statusText: folder.statusText,
+                                    isComplete: folder.isComplete,
+                                    
+                                    fileParts: folder.Urls[indexFile].Parts[indexParts],
+                                    fileSize: folder.Urls[indexFile].size,
+                                    fileReceivedBytes: folder.Urls[indexFile].receivedBytes,
+                                    fileIsComplete: folder.Urls[indexFile].isComplete
+                                }
+                            let updateFileDetail = { baseFolder: baseFolder, index: index , indexFile: indexFile, indexParts: indexParts}
+                            //console.log('updateFileDetail=====================================', updateFileDetail, baseFolder.isUnderway);
+                            this.$store.dispatch('downloadList/updateFileDetail', updateFileDetail);
+                        }
+                        if (folder.progress == 100) {
+                            folder.file_path   = [];
+                            folder.folder_path = [];
+                            folder.Urls        = [];
+                            this.$store.dispatch('completedList/pushList', folder)
+                        }
+                    }
+                })
+            },
+            signCheckErrorFile (FileId, indexFile, tip) {
+                this.downloadList.forEach((folder, index) => {
+                    if (FileId == folder.FileId && false == this.downloadList[index].Urls[indexFile].isComplete) {
+                        console.log('标记error的文件---------------------------', this.downloadList[index].Urls[indexFile].name);
+                        this.downloadList[index].Urls[indexFile].error = true;
+                        this.downloadList[index].Urls[indexFile].tip = tip;
+                    }
+                })
+            },
+            checkDownloadTask (FileId) {
+                let isUpdate = true;
+                if (true === this.listenerStatus.downloadPauseAll) {
+                    isUpdate = false;
+                }
+                if (true === this.listenerStatus.downloadRemoveAll) {
+                    isUpdate = false;
+                }
+                console.log('DOWNLOAD_FILE_CHECK--------------------更新状态', isUpdate);
+                if (false === isUpdate) {
+                    return true;
+                }
+                this.completedList.forEach((folder, index) => {
+                    if (FileId == folder.FileId) {
+                        if (100 == folder.progress) {
+                            this.$electron.ipcRenderer.send('DOWNLOAD_SUCCESS', folder.name);
+                        }
+                    }
+                })
+
+                this.downloadList.forEach((folder, index) => {
+                    if (FileId == folder.FileId) {
+                        if (100 != folder.progress) {
+                            this.downloadList[index].error = true;
+                            let indexFile = { index: index, file: this.downloadList[index] }
+                            this.$store.dispatch('downloadList/updateFile', indexFile)
                         }
                     }
                 })
@@ -916,6 +1071,9 @@
 
                             let indexFile = { index: index, file: this.downloadList[index] }
                             this.$store.dispatch('downloadList/updateFile', indexFile)
+
+                            //添加文件信息更新限制
+                            this.$store.dispatch('listenerStatus/pushDownloadPause', {FileId: file.FileId, status: true})
                         }
                     }
                 })
@@ -1030,9 +1188,16 @@
             },
             folderClickName (row) {
                 if(row.cm_is_file == 0){
-                    this.selectList = [];
-                    this.cm_folder_pid = row.cm_folder_id;
-                    this.getUserFolderList(row.cm_folder_id, row.cm_bucket_id, row.cm_user_id, 1)
+                    let clickTimer = null;
+                    if (clickTimer) {
+                        window.clearTimeout(clickTimer);
+                        clickTimer = null;
+                    }
+                    clickTimer = window.setTimeout(() => {
+                        this.selectList = [];
+                        this.cm_folder_pid = row.cm_folder_id;
+                        this.getUserFolderList(row.cm_folder_id, row.cm_bucket_id, row.cm_user_id, 1)
+                    }, 100);
                 }
             },
             folderNameChange (event, index) {
