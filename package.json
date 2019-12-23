@@ -59,7 +59,7 @@
   "dependencies": {
     "async": "2.6.2",
     "aws-sdk": "^2.411.0",
-    "axios": "^0.18.0",
+    "axios": "^0.18.1",
     "babel-polyfill": "^6.26.0",
     "file-type": "^3.9.0",
     "fs-extra": "^8.0.1",
