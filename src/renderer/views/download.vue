@@ -222,7 +222,7 @@
 
                 if (tempFile) {
                     console.log('重试========================================', tempFile);
-                    this.$electron.ipcRenderer.send('DOWNLOAD_RETRY', tempFile)
+                    //this.$electron.ipcRenderer.send('DOWNLOAD_RETRY', tempFile)
                     this.$electron.ipcRenderer.send('DOWNLOAD_FILES', tempFile)
                 }
             },
@@ -263,13 +263,19 @@
                 this.$store.dispatch('listenerStatus/downloadPauseAll', false)
                 let tempFile = [];
                 this.downloadList.forEach((item, index) => {
-                    this.downloadList[index].paused = false;
-                    this.downloadList[index].error = false;
+                    //只会全部开始 isUnderway 处于 false状态的任务
+                    if (false === this.downloadList[index].isUnderway) {
+                        this.downloadList[index].paused = false;
+                        this.downloadList[index].status = 'underway';
+                        this.downloadList[index].isUnderway = true;
+                        this.downloadList[index].error = false;
 
-                    let indexFile = { index: index, file: this.downloadList[index] }
-                    tempFile[index] = this.downloadList[index];
-                    this.$store.dispatch('downloadList/updateFile', indexFile)
+                        let indexFile = { index: index, file: this.downloadList[index] }
+                        tempFile[index] = this.downloadList[index];
+                        this.$store.dispatch('downloadList/updateFile', indexFile)
+                    }
                 })
+                //this.$electron.ipcRenderer.send('DOWNLOAD_RETRY', tempFile)
                 this.$electron.ipcRenderer.send('DOWNLOAD_FILES', tempFile)
             },
             //全部取消  下载文件

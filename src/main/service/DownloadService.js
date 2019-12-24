@@ -102,16 +102,16 @@ const downloadParts = (file, indexFile, indexParts) => new Promise((resolve, rej
         "method": 'GET',           
         "url": parts.url,
         "forever": true,
-        "timeout": 30000,
+        "timeout": 40000,
         "headers": {
             "Range": 'bytes=' + parts.startData + '-' + parts.endData,
             //"Connection": "keep-alive"
         }
     };
-    let req = request(params);
-    req.on('error', (e) => {
+    let reqParts = request(params);
+    reqParts.on('error', (e) => {
         console.log("请求遇到问题----------------------:", e.message, parts.chunkNumCurrent, file.Urls[indexFile].Parts[indexParts].receivedBytes);
-        out.end();
+        outParts.end();
 
         downloadRetry.fileId = file.FileId;
         downloadRetry.status = true;
@@ -126,10 +126,10 @@ const downloadParts = (file, indexFile, indexParts) => new Promise((resolve, rej
         "start": parts.startData,
         "flags": 'r+'
     };
-    let out = fs.createWriteStream(parts.downloadPath, options);//返回可写流
-    out.on('error', (e) => { 
+    let outParts = fs.createWriteStream(parts.downloadPath, options);//返回可写流
+    outParts.on('error', (e) => { 
         console.log('可写流遇到问题----------------------', e, parts.name, parts.chunkNumCurrent, file.Urls[indexFile].Parts[indexParts].receivedBytes);
-        out.end();
+        outParts.end();
 
         downloadRetry.fileId = file.FileId;
         downloadRetry.status = true;
@@ -141,21 +141,21 @@ const downloadParts = (file, indexFile, indexParts) => new Promise((resolve, rej
     });
 
 
-    // req.on("socket", function (socket) {
+    // reqParts.on("socket", function (socket) {
     //     //console.log('socket============================', socket);
     //     socket.on("close", function() {
     //         console.log("socket has been closed");
     //     });
     // });
 
-    out.on('finish', () => {
+    outParts.on('finish', () => {
         //console.error('写入已完成', parts.name, parts.chunkNumCurrent, file.Urls[indexFile].Parts[indexParts].receivedBytes);
     });
 
-    req.pipe(out);
+    reqParts.pipe(outParts);
 
     //流字节大小
-    req.on('response', (res) => { 
+    reqParts.on('response', (res) => { 
         //console.log(`响应头=========================: ${JSON.stringify(res.headers)}`);
         if (206 === res.statusCode) {
             //parts.totalBytes = parseInt(res.headers['content-length'], 10);
@@ -173,12 +173,12 @@ const downloadParts = (file, indexFile, indexParts) => new Promise((resolve, rej
     });
 
     //接收到文件流事件   file.receivedBytes
-    req.on('data', (chunk) => {
+    reqParts.on('data', (chunk) => {
 
         //主动断开连接  清空下载列表
         if (true === clearAll.status) {
             file.isUnderway = false;
-            req.abort();
+            reqParts.abort();
             return resolve(parts.chunkNumCurrent);
         }
 
@@ -187,7 +187,7 @@ const downloadParts = (file, indexFile, indexParts) => new Promise((resolve, rej
             file.paused = true;
             file.status = 'paused';
             file.isUnderway = false;
-            req.abort();
+            reqParts.abort();
             return resolve(parts.chunkNumCurrent);
         }
 
@@ -195,13 +195,13 @@ const downloadParts = (file, indexFile, indexParts) => new Promise((resolve, rej
         if (true ===  downloadRemove.status && downloadRemove.fileId == file.FileId) {
             file.isRemove = true;
             file.isUnderway = false;
-            req.abort();
+            reqParts.abort();
             return resolve(parts.chunkNumCurrent);
         }
 
         //主动断开处理
         if (false === file.isUnderway) {
-            req.abort();
+            reqParts.abort();
         }
 
         //向 render 进程通信
@@ -253,9 +253,9 @@ const downloadParts = (file, indexFile, indexParts) => new Promise((resolve, rej
     })
    
     //文件接收结束
-    req.on('end', () => {
-        req.abort();
-        //console.log('文件块接收结束=======================req==end',parts.downloadPath, file.Urls[indexFile].Parts[indexParts].receivedBytes, file.isUnderway);
+    reqParts.on('end', () => {
+        reqParts.abort();
+        //console.log('文件块接收结束=======================reqParts==end',parts.downloadPath, file.Urls[indexFile].Parts[indexParts].receivedBytes, file.isUnderway);
         if (true === file.isUnderway) {
             if (file.Urls[indexFile].Parts[indexParts].totalBytes === file.Urls[indexFile].Parts[indexParts].receivedBytes) {
                 //小于1M 的 文件块
@@ -328,13 +328,13 @@ const checkFileMessage = (file, indexFile) => new Promise((resolve, reject) => {
     let params ={           
         "method": 'get',
         "url": fileMessage.url,
-        "forever": true,
-        "timeout": 15000,
+        // "forever": true,
+        // "timeout": 15000,
     }
 
     try {
-        let req = request(params);
-        req.on('error', (e) => {
+        let reqCheck = request(params);
+        reqCheck.on('error', (e) => {
             let sendData = {
                 FileId: file.FileId,
                 indexFile: indexFile,
@@ -342,16 +342,16 @@ const checkFileMessage = (file, indexFile) => new Promise((resolve, reject) => {
             };
             console.log('请求遇到问题========================error', e.message);
             sendWebContentsMessage('DOWNLOAD_ERROR_SIGN', sendData);
-            req.abort();
+            reqCheck.abort();
             return reject();
         });
-        req.on('response', (res) => { 
+        reqCheck.on('response', (res) => { 
             let totalBytes = parseInt(res.headers['content-length'], 10)
             if (200 === res.statusCode && !isNaN(totalBytes)) {
                 if (fileMessage.size != totalBytes) {
                     console.log('接口文件大小========================================实际文件大小', fileMessage.size, totalBytes);
                 }
-                req.abort();
+                reqCheck.abort();
                 return resolve(totalBytes);
             } else {
                 console.log('请求遇到问题========================资源不存在');
@@ -361,7 +361,7 @@ const checkFileMessage = (file, indexFile) => new Promise((resolve, reject) => {
                     tip: '资源不存在',
                 };
                 sendWebContentsMessage('DOWNLOAD_ERROR_SIGN', sendData);
-                req.abort();
+                reqCheck.abort();
                 return reject();
             }
         });
@@ -410,11 +410,8 @@ const setPartsQueue= async (file, indexFile, cbFiles) => {
             }
         }
 
-        //创建文件块
-        if (file.Urls[indexFile].Parts.length == 0) {
-            file.Urls[indexFile] = createFileParts(file, file.Urls[indexFile]);
-        }
-        
+        //创建文件块 切块函数会续切块，不用判断是否切块
+        file.Urls[indexFile] = createFileParts(file, file.Urls[indexFile]);
 
         //设置块队列
         file.Urls[indexFile].Parts.forEach((itemParts, indexParts) => {
@@ -537,6 +534,9 @@ class DownloadService {
                 if (!fs.existsSync(path.join(item.downloads, `\\${folderPath}`)))
                 fs.mkdirSync(path.join(item.downloads, `\\${folderPath}`));
             });
+            if (item.downloadPath == '') {
+                item.downloadPath = path.join(item.downloads, `\\${item.name}`);
+            }
 
             //暂停的文件不进入文件下载队列， 处理应用重启时的问题
             if(false === item.paused){
@@ -547,6 +547,16 @@ class DownloadService {
                     item.isUnderway = true;
                     sendWebContentsMessage('DOWNLOAD_START', item);
                 }
+
+                //清空文件传输限制(初始化各种文件传输开关)
+                downloadPause.fileId = '';
+                downloadPause.status = false;
+                downloadRemove.fileId = '';
+                downloadRemove.status = false;
+                downloadRetry.fileId = '';
+                downloadRetry.status = false;
+                clearAll.event = 'DOWNLOAD_CLEAR_ALL_CALL';
+                clearAll.status = false;
 
                 downloadQueue.push({name : item.name, run: function(cb){
                     item.status = 'underway';
